@@ -1,1 +1,2 @@
 # snow_down
+This repository holds the code to produce the analyses in 'Canaries of the Arctic: the collapse of the eastern Bering Sea snow crab". The survey haul data files used to develop some of the indices used in the manuscript are too large to be hosted on github, so please contact the author for access. Code for some figures in the supplementary materials is not included here, but can be made available upon request.
