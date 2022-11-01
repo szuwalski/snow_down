@@ -1,0 +1,771 @@
+---
+author: ""
+date:
+output:
+  pdf_document:
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    keep_tex: true
+    includes:
+      in_header: my_header.tex
+header-includes: 
+  - \usepackage[left]{lineno}
+  - \linenumbers
+#-  \pagenumbering{gobble}
+csl: fish-and-fisheries.csl
+title: "Supplementary materials: Canaries of the Arctic: the collapse of eastern Bering Sea snow crab"
+---
+
+```{r, include=FALSE}
+
+knitr::opts_chunk$set(echo=FALSE,message=FALSE,warning=FALSE)
+
+library(plyr)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(PBSmodelling)
+library(pander)
+library(coda)
+library(maps)
+library(lattice)
+library(PBSmapping)
+library(mapdata)    #some additional hires data
+library(maptools)   #useful tools such as reading shapefiles
+library(mapproj)
+library(plotrix)
+
+in_path<-"C:/gmacs/gmr/R/"
+library(ggridges)
+library(reshape2)
+library(miceadds)
+source.all( path=in_path, grepstring="\\.R",  print.source=TRUE, file_sep="__"  )
+
+#source("plot.bubble.residuals.addn.R")
+
+```
+
+
+# Supplementary materials
+## Methods overview
+We used an integrated population model to estimate variation in mortality over time for snow crab in the eastern Bering Sea and generalized additive models (GAMs) to relate the estimated variation in mortality to potential stressors in the environment.  The population dynamics model was fit to abundance and size composition data from the National Marine Fisheries Service (NMFS) summer bottom trawl survey in the eastern Bering Sea shelf to estimate total mortality by maturity state and year for male snow crab. We then developed indices for temperature occupied, disease prevalence, cannibalism, and crab density from the NMFS survey to test as covariates in GAMs. Indices for fishery related effects were collated from fisheries statistics from the Alaska Department of Fish and Wildlife and also included in the GAMs.  Below we describe each of these components, discuss the rationale behind our modeling decisions, and provide sensitivities and simulation tests of our models.
+
+## Population dynamics model
+The population dynamics model presented here incorporates the best available information on relevant population processes to estimate total mortality for male snow crab on the eastern Bering Sea shelf and is similar in structure to the model used to assess eastern Bering Sea snow crab for management (Szuwalski, 2021). The model tracked numbers of male crab at size at maturity state over time with size bins ranging from 30-95 mm carapace width with 5 mm bin widths. Only male crab were modeled because male and female crab appear to have somewhat different dynamics and the male crab in the modeled size range are better selected by the survey gear (Szuwalski, 2021). Snow crab are sexually dimorphic, with male snow crab growing to nearly twice the size of females, which accounts for the better selection in the survey. Only crab smaller than 95 mm were modeled for two reasons: 1) to attempt to isolate the effect of the directed fishery (crabs of >101 mm carapace width are targeted in the fishery; discussed further below) and 2) almost all of the crab that disappeared since 2018 are in this size range. The population dynamics model operates on a half year time step, starting in July at the time of the NMFS survey. The fishery is assumed to occur in February. Total mortality (Z) is estimated by year (y) and maturity state (m). Other estimated parameters include the initial numbers at size by maturity state, yearly log recruitments, a vector of scalars that determine the proportions of estimated recruitment split into the first two size bins, and a variance component for the penalty on total mortality. Parameters determining growth, maturity, and survey selectivity were estimated outside of the model and specified when estimating mortality and catchability. Mortality is the only population process that occurs in the first half of a given year:
+
+ \begin{equation} N_{t=y+0.5,s,m} = N_{t=y,s,m}e^{-Z_{t,s,m}/2}
+  \end{equation}
+  
+Growth occurs at the beginning of the second half of the year for immature crab and is represented in the model by multiplying the vector of immature crab at size by a size-transition matrix $X_{s,s'}$ that defines the size to which crab grow given an initial size. Snow crab are observed to undergo a 'terminal molt' to maturity after which growth ceases (Tamone et al., 2005). Accordingly, all immature crab are assumed to molt and no mature crab molt in our model. The newly molted crab are assigned to a maturity state based on observed ogives of the proportion of mature new shell males by size calculated from chelae height measured in the NMFS survey data (Otto, 1998), which varies over time ($\rho_{y,s}$; \autoref{maturity_facet}). The average probability of having undergone terminal molt is used in years during which data were not collected. This process results in two temporary vectors of numbers at size:
+
+ \begin{equation}  n_{t=y+0.5,s,m=1} = \rho_{y,s} X_{s,s'} N_{t=y+0.5,s,m=1}   \end{equation}
+ \begin{equation}  n_{t=y+0.5,s,m=2} = (1-\rho_{y,s}) X_{s,s'} N_{t=y+0.5,s,m=2}   \end{equation}
+
+The size transition matrix $X_{s,s'}$ was constructed using growth increment data collected over several years (see Szuwalski, 2021 for a summary) to estimate a linear relationship between pre- and post-molt carapace width (\autoref{linear_growth}), ($\hat{W}^{pre}_{s,w}$ and $\hat{W}^{post}_{s,w}$, respectively) and the variability around that relationship was characterized by a discretized and renormalized normal distribution with a size-varying standard deviation, Y~*s,w,w'*~ (\autoref{linear_growth}).
+
+ \begin{equation} X_{s,w,w'} = \frac{Y_{s,w,w'}}{ \sum_{w'} Y_{s,w,w'}}\end{equation}
+
+ \begin{equation} Y_{s,w,w'} = (\Delta_{w,w'})^{\frac {\hat{L_{s,w}}-(\bar{W}_{w}-2.5)}{ \beta_{s}}} \end{equation}
+
+ \begin{equation}
+  \hat{L}^{post}_{s,w} = \alpha_{s} + \beta_{s,1}hat{W}^{pre}_{s,w}
+ \end{equation}
+
+\begin{equation} \Delta_{w,w'} = \bar{L}_{w'} + 2.5 - W_{w} \end{equation}
+
+It is important to note that crab can 'outgrow' this model, which is represented by the pre-molt-carapace widths (e.g. 87.5 and 92.5 mm carapace width in \autoref{linear_growth}) that have low probability of molting to any of the sizes that are included in the population dynamics model.  
+
+Recruitment by year, $\tau_{y}$, was estimated as a vector in log space and added to the first two size of classes of immature crab based on another estimated vector $\delta_{y}$ that determines the proportion allocated to each size bin.
+
+ \begin{equation}  n_{t=y+0.5,s=1,m=1} = n_{t=y+0.5,s,m=1} + \delta_{y} e^\tau_{y}    \end{equation}
+ \begin{equation}  n_{t=y+0.5,s=2,m=1} = n_{t=y+0.5,s,m=1} +  (1-\delta_{y}) e^\tau_{y} \end{equation}
+
+Finally, the last half of the year of mortality is applied to the population after growth, maturity, and recruitment occurs. Note that this allows a crab to experience two different mortalities within a given year as it undergoes terminal molt.
+
+ \begin{equation} N_{t=y+1,s,m=1} = n_{t=y+0.5,s,m=1}e^{-Z_{t,s,m}/2}  \end{equation}
+ \begin{equation} N_{t=y+1,s,m=2} = (N_{t=y+0.5,s,m=2} + n_{t=y+0.5,s,m=2})e^{-Z_{t,s,m}/2}  \end{equation}
+ 
+### Survey selectivity
+
+The observed numbers of crab at size by year in the NMFS survey reflect the ability of the trawl gear to capture the crab, also known as 'selectivity'. The selectivity of trawl gear can change according to size, and consequently needs to be accounted for in the population dynamics model when fitting to the survey data. Values for survey selectivity at size were specified using data from experimental trawls conducted by the Bering Sea Fisheries Research Foundation in collaboration with the NMFS summer survey. The experimental trawls were performed at the same time and location as the NMFS summer survey tows to evaluate the efficiency of the NMFS survey trawl gear at capturing snow crab (Somerton et al., 2013). The nephrops gear used by the BSFRF was assumed to capture all crab in its path given strong bottom contact.  The resulting area-swept estimates of numbers of crab at size from the BSFRF and NMFS surveys ($\hat{N}_{y,s,NMFS}$ and $\hat{N}_{y,s,NMFS}$, respectively) can be used to infer the selectivity of the NMFS gear in year y as:
+
+ \begin{equation} S_{y,NMFS} = \frac {\hat{N_{y,s,NMFS}}}{\hat{N}_{y,s,BSFRF}} \end{equation}
+
+The experimental trawls captured snow crab in the years 2010, 2011, 2016, 2017, and 2018, but the spatial foot print and sample sizes varied by year (\autoref{select_map}). The calculated selectivities by size and by year were fairly consistent for snow crab of carapace widths 40 - 95 mm, but the signal was less consistent for crab larger than ~100 mm carapace width (\autoref{select_data}). The selectivity of large crab determines the estimated scale of the population in a population dynamics model, but the information we have on selectivity of large crab is poor and different assumptions about selectivity lead to very different inference about the stock (Szuwalski, 2021b). The lack of clear information on the scale of the population exploited by the fishery is one of the key reasons we used the range of sizes included in this model and excluded the directed fishery data from the analysis. A GAM was fit through the estimates of selectivity and the resulting estimates by size were directly specified in the population dynamics model.
+
+'Catchability' represents the fraction of the population available to the survey gear (either as a result of spatial mis-match or the inability of the gear to come in contact with the animals as a result of burrowing or hiding in untrawlable habitat). The capability for modeling time-varying catchability was built into the model in the form of a vector of parameters equal to the length of the time series of data. When time-varying catchability was estimated, the yearly catchability parameters were used to scale the selectivity curve described above up or down. 
+
+## Objective function
+The objective function for the population dynamics model consists of likelihood components and penalty components that are summed and minimized in log space to estimate parameters within the model. Several data sources were fit to using the following likelihoods. Observed size composition data for immature and mature males were fit using multinomial likelihoods and were implemented in the form:
+
+\begin{equation} L_{x} = \lambda_{x} \sum_{y} N_{x,y} \sum_{l} p^{obs}_{x,y,l} ln( \hat {p}_{x,y,l}/p^{obs}_{x,y,l})
+\end{equation}
+
+L~*x*~ was the likelihood associated with data component x, where $\lambda_{x}$ represented an optional additional weighting factor for the likelihood, $N_{x,y}$ was the sample sizes for the likelihood, $p^{obs}_{x,y,l}$ was the observed proportion in size bin *l* during year *y* for data component *x*, and $\hat {p}_{x,y,l}$ was the predicted proportion in size bin *l* during year *y* for data component *x*. Sample sizes were input as 100, which is the value currently used in the stock assessment.
+
+Observed indices of abundance for immature and mature males were fit with log normal likelihoods implemented in the form:
+
+\begin{equation} L_{x} = \lambda_{x} \sum_{y} \frac {(ln(\hat{I}_{x,y}) - ln(I_{x,y}))^2}{2(ln(CV_{x,y}^2 + 1))}
+\end{equation}
+
+$L_{x}$ was the contribution to the objective function of data component *x*, $\lambda_{x}$ was any additional weighting applied to the component, $\hat{I}_{x,y}$ was the predicted value of quantity *I* from data component *x* during year *y*, I~*x,y*~ was the observed value of quantity *I* from data component *x* during year *y* and CV~*x,y*~ was the coefficient of variation for data component *x* during year *y*.   
+
+### Penalties and priors
+
+Smoothing penalties were placed on estimated vectors of deviations for immature and mature natural mortality and immature and mature catchability. A prior value of 0.27 is used for the average natural mortality based on assumed maximum age of 20 and Hamel's (2015) empirical analysis of life history correlates with natural mortality. The priors used for catchability were derived from the selectivity experiments described above. Penalties were implemented using normal likelihoods on the second differences of the vector. A separate normal prior was placed on the estimated mean value of immature and mature mortality in the form: 
+
+\begin{equation} L_{x} = \lambda_{x} \sum_{y} \frac {((\hat{I}_{x,y}) - (I_{x,y}))^2}{CV_{x,y}^2}
+\end{equation}
+
+$L_{x}$ was the contribution to the objective function of data component *x*, $\lambda_{x}$ was any additional weighting applied to the component, $\hat{I}_{x,y}$ was the predicted value of quantity *I* from data component *x* during year *y*, I~*x,y*~ was the observed value of quantity *I* from data component *x* during year *y* and CV~*x,y*~ was the coefficient of variation for data component *x* during year *y*.   
+
+## Population dynamics model sensitivities
+Modeling decisions are necessarily made in the process of writing population dynamics models and it is possible for these decisions to influence the outcome of an analysis. Within the context of our model, these decisions include what processes to allow to vary over time, the weights assigned to different data sources and portions of the objective function, which parameters to place priors or penalties on, and what those priors or penalties should be. We ran several sensitivity analyses to understand the implications of these modeling decisions on the outcome of our analysis.   
+
+### Does allowing mortality or catchability to vary over time improve model fits?
+Catchability and mortality are somewhat confounded within population dynamics models (Thompson, 1994). Fewer crab observed in a given year can be attributed to either crab dying or by crab moving out of the surveyed area either by walking out of the boundaries or burying themselves into the substrate. At the same time, it is also clear that catchability and mortality likely vary over time in reality in spite of the fact that they are often assumed to be time-invariant in population dynamics models (Johnson et al., 2014). Somerton et al. (2013) showed that catchability varied by substrate and depth for snow crab in the EBS. The spatial distribution of snow crab varies over time and substrate and depth vary over space, so it follows that catchability should also vary over time. 
+
+We started exploring the impacts of including time-variation in mortality and catchability on model output by  fitting a model with no time-variation in mortality or catchability. Then we compared the output of this model to models that allow time-variation in mortality, catchability, and both processes simultaneously (\autoref{inc_complex} & \autoref{inc_comp_proc}). The model with no time-variation in mortality or catchability was able to capture the general trend in immature and mature survey abundance solely through estimating variability in recruitment. Allowing time-variation in catchability improved the fits to immature survey abundances more than time-varying mortality, but time-variation in either process improved fits in a similar manner for mature survey abundances. Mature size composition data were fit similarly for all models, but immature size composition data were better fit by the models that allowed time-varying catchability (\autoref{inc_complex}). Part of the reason this difference in fits to immature size composition data occurs is the variability in the first several size bins resulting from the poor selectivity of the survey for small animals. Sometimes the peaks seen in larger size classes are reflected in the preceding years' data for the smallest size classes, sometimes those peaks are not reflected (compare \autoref{expand_size_fits_imm} to \autoref{expand_size_fits_mat}). As a consequence, positive residuals occur in the smallest size classes when a pseudocohort is consistently seen in large size classes, but not observed in the smallest size bins (e.g. 1991 vs. 1992; 1997 vs 1998).
+
+The model without time-variation in mortality or catchability explained 67% of the deviation in the abundance indices, time-varying mortality explained 77%, time-varying catchability explained 94%, and both processes varying explained 99% of the historical deviance.  Model selection based on information criteria (e.g. AIC; Akaike, 1974) are often used to identify a model within a suite of models that most parsimoniously fits the data. Adding time-variation in natural mortality or catchability alone improved model fits parsimoniously (AIC of 3434.15 for base model vs. 1593.836 and 1321.486 for time-varying mortality and catchability, respectively). However, adding time-variation in both processes resulted in a higher AIC (1449.275) than implementing time-variation in catchability, owing to the large number of parameters estimated. While catchability and mortality are somewhat confounded, catchability is also confounded with other sorts of error (e.g. observation) and allowing a relatively unconstrained estimation of catchability over time resulted in over-fitting the data, the consequences of which will be seen in simulations below. Even with this paring of potential models, there are several assumptions that could influence the output of our models. The following sensitivities are aimed at exploring the impacts of those assumptions on model output.
+
+### How well can the model estimate mortality and selectivity with simulated data?
+
+One of the most essential exercises to perform with a population dynamics model before using its output is to perform a 'self-test' in which data are simulated from the population dynamics model with appropriate error and then fit to by the model. The goal of this test is to determine whether or not a model can return the parameter values underlying the simulated data with the available quantity and quality of data. For our analysis, the ability of the model to estimate mortality and catchability are of particular interest because they are candidates for use as input into GAMs to attempt to link the estimates to environmental stressors. Recruitment is also of interest because of its confounding with the other processes.
+
+Log-normal error was added to the true underlying abundance from the simulation model with three different coefficients of variation: 0.01, 0.10, and 0.30. Simulated data sets were generated 100 times under each observation error scenario and the population dynamics models were fit to them. Two population dynamics models were fit: one in which time-varying natural mortality was estimated and one in which time-varying natural mortality and time-varying catchability were estimated. Estimates of mortality were closer to the true underlying values than estimates of catchability (compare \autoref{sim_est_q} to \autoref{sim_est_m}). Mature mortality was better estimated than immature mortality regardless of data quality or model configuration.  The correlation between estimated and simulated mortality was 0.65 and 0.96 for immature and mature mortality for the 0.01 observation error scenarios, respectively. The ability of the models to estimate mortality became more similar as data quality decreased. Overall, the model was best able to estimate mature mortality and this is likely a consequence of its separation from estimated recruitment in time. In general, estimates of catchability for both maturity states were unreliable. 
+
+As a result of these simulation analyses, two modeling decisions arose. First, we used estimated variation in mortality from models that only estimate time-variation in mortality because the estimates of mortality from models that estimated time-variation in both mortality and catchabilty were less reliable. This precludes attempts to identify relationships between estimated catchability and environmental variables. Second, the inability of the model to capture the scale of the population (\autoref{sim_rec}) underscores the need to relate mortality to the environmental covariates outside of the model, rather than attempting to build them into the model (similar to Dorn and Barnes, 2022). The covariates described below are indices of a particular environmental stressor, not absolute quantities that could provide scale to the model. 
+
+### How do the assumptions about weighting and priors influence the estimated quantities?
+
+Some aspects of the model that may influence the outcome of the fitting are specified by the user with no clear 'correct' value. These include the weights assigned to the size composition data, some priors placed on population processes, and the weights assigned to the smoothness penalties. We performed sensitivity analyses for these parameters to check how different specifications changed the fits to the data and the estimates of mortality and catchability. We input a range of values for the size composition weights (25, 50, 100), the prior on the mean natural mortality in log space (-1.6, -1.2, -0.8), the input standard deviation for the penalties on natural mortality (0.01, 0.1, 0.2) and the smoothness penalty on the estimated time series' of mortalities and catchabilities (0.001, 0.1, 0.5, 0.1).
+
+Differences among sensitivity scenarios resulted in very small changes in the fits to the data (\autoref{sens_fits}), but larger changes in estimated mortalities and catchabilities (\autoref{sens_ests}). The smoothness penalty placed on mortality over time appeared to be the largest driver of changes in estimates of M and q, so we looked at a wider range of smoothness penalties (i.e. 0.001, 0.1, 0.25, 0.5, 1, 5, 10, 1000).  Trajectories of mortalities were roughly preserved across this range. The prior on mean natural mortality predictably scaled the estimated time series up or down. The best available information suggests natural mortality should be approximately 0.27 given an assumed (but based on a range of studies; see Szuwalski, 2021 for a summary) maximum age of 20 years for wild snow crab. Based on these analyses, we elected to use small smoothing penalties because there is no evidence to suggest that mortality should be particularly smooth from year to year and relatively tight priors on the mean mortality given outside information to support this assumption. These analyses also underscore the fact that the scale of the population is difficult to estimate with the data available and the need to relate mortality to the environmental covariates outside of the population dynamics model. This likely comes from the fact that recruitment and immature mortality are confounded (i.e. fewer immature crab in a given year can be because of increased immature mortality or because of lower recruitment).
+
+## Covariate construction
+
+A wide range of factors could potentially influence mortality of snow crab on the eastern Bering Sea shelf, including temperature, predation, disease, cannibalism, and fisheries effects. The NMFS summer trawl survey provides a rich spatio-temporal data set to develop time series of temperature occupied, predation, disease, and cannibalism (Zacher et al., 2022). The fisheries-dependent observer data provide spatio-temporal information on bycatch (AKFIN, 2022). The main text notes that more than 10 billion crab have gone missing since 2018. This number is derived from the input total numbers observed in the survey to the assessment, which decreased from 11.7 billion animals in 2018 to 940 million animals in 2021. However, this figure does not account for the selectivity of the survey gear and includes both sexes. If survey selectivity is accounted for, the number of missing crab increases dramatically, with the most recent assessment estimating a decline from ~47 billion in 2017 to 2.58 billion in 2022. Regardless of the metric used, the number of crab missing from the Bering Sea survey was exceptionally large.
+
+Currently, estimating spatially-explicit, time-varying mortality is not computationally feasible, nor are data on movement available to inform such a model. Consequently, our analysis aggregates the spatial data for snow crab into time-series. The end goal is to use these time-series in predictive models to identify relationships between estimated mortality and stressors, so attention has to be paid to creating appropriate comparisons. For example, a predation index needs to consider not only the total consumption of crab by cod, but also the total number of crab in the ocean of the size that can be consumed by cod to be comparable to changes in estimated mortality rates (discussed more below). 
+
+Another important point for consideration in covariate construction is the estimation of mortality by maturity state. Snow crab in the EBS undergo an ontogenetic migration in which juvenile crab settle on the northeast portion of the shelf after their pelagic phase, then migrate southwest into deeper and (usually) warmer waters (Ernst et al., 2005; Parada et al., 2010). This means that the conditions and stressors experienced by immature crab can be different than those by mature crab. To address this issue, the spatial data sets for temperature, disease, and cannibalism were split based on the size above which half of the population was mature. The size at which more than half of the population is mature changes by year, depending on recruitment dynamics and other demographic processes (\autoref{split_mat}). After the survey data were split at the 50% at maturity size, time series of maturity-specific environmental stressors (\autoref{grid_covar}) were created as described below.
+
+### Temperature
+Temperature is one of the key physical variables that structures the benthic ecosystem of the EBS (Mueter and Litzow, 2008). The cold pool, a mass of water <2 degrees Celsius, acts as a barrier to species interaction based on temperature preferences of different species. Snow crab are a stenothermic species, preferring cold water and juvenile snow crab in particular are rarely found outside of the cold pool (Dionne, 2003). The cold pool is directly related to the winter ice extent in the Bering Sea and has varied dramatically over time as the ecosystem moves between cool and warm stanzas (e.g. 2006-2010 vs. 2014-2019; Figure 1b of the main text and \autoref{bottom_temp}). As the cold pool changes from year to year, so does the spatial distribution of snow crab (\autoref{snow_dist}). The ontogenetic migration of snow crab results in crab of different sizes and maturity states experiencing different temperatures in a given year (\autoref{temp_occupied}). The 'temperature occupied' for different sizes of crab by year $T_{s,y}$ was calculated here as an average of the observed bottom temperatures at the stations at which crab of a given size were captured $t_{i}$, weighted by the area-swept density of crab at a given station $d_{i}$:
+
+\begin{equation} T_{s,y} = \frac{\sum_{i}d_{i}t_{i}}{\sum_{i}d_{i}} \end{equation}
+
+The resulting time series of temperatures occupied by size were then split by maturity state by identifying a cutoff beyond which half of the population was mature and aggregating the temperatures above and below the cutoff to represent immature and mature temperature occupied (\autoref{temp_by_mat}). 
+
+### Predation
+Pacific cod (*Gadus macrocephalus*) are the most important predator of snow crab based on stomach content data collected in the NMFS bottom trawl survey (Long and Livingston, 1998). Immature crab under the size of 55 mm carapace width are the primary sizes consumed by cod in the Bering Sea (Burgos et al., 2010). An index of summer daily consumption (tons/day) of snow crab between 30-95mm carapace width eaten by Pacific cod in the eastern Bering Sea was developed using cod stomach content data from the survey to estimate the proportion by weight of crab in cod diets and the size composition of crab by carapace width of prey found in cod stomachs, stratified by year, survey stratum, and cod length (collection and analysis methods described in Livingston et al. 2017).  Cod total consumption rate (metabolic demand) was calculated using a cod bioenergetics model (Holsman and Aydin 2015) to estimate laboratory-measured maximum consumption rates adjusted for bottom water temperatures and cod abundance-at-length measured at each haul location (following methods described in Barbeaux et al. 2020), and summed to an ecosystem-wide total.
+
+Changes in the cold pool can alter the interaction between snow crab and Pacific cod over time. Decreases in the size of the cold pool coincide with more northerly positions of the centroids of abundance of cod (e.g. 2003 and 2018-2019; \autoref{cod_centroids} & \autoref{cod_pred_data}).  This increased interaction coincided with increased numbers of crab consumed by cod in the last several years (\autoref{cod_consumption_raw}). However, this period of time also coincided with the appearance of the largest pseudo-cohort of snow crab ever seen in the Bering Sea. Given the generalist nature of Pacific cod, one would expect to see an increase in the amount of crab consumed by cod during this period of time even if there weren't differences in the interactions between the species as a result of changes in the cold pool. Further, a large fraction of the missing crab from the recent collapse were not of the sizes typically eaten by cod (\autoref{sizes_of_missing_crab}). To evaluate the possibility cod consumption has influenced the mortality of snow crab over time, the relative impact of consumption with respect to the population size must be considered. The vast majority of snow crab consumed by Pacific cod are immature, so only indices of cod predation for immature crab were included in the models below. Predation indices were calculated for immature animals by year $P_{m,y}$ by calculating the ratio of the extrapolated biomass of crab consumed by cod to the biomass of the estimated biomass of crab, $N_{y,m,s}*w_{s}$:
+
+\begin{equation} P_{m,y} = \frac{cod_{y,m}}{\sum_{s} N_{y,m,s}*w_{s}} \end{equation}
+
+The exact amount of crab eaten cannot be calculated from the available diet data because they are a snapshot of consumption at one point during the year and consumption would be expected to change with spatial overlap and temperature-driven changes in metabolism occurring throughout the year. Consequently, removals due to predation cannot be directly incorporated into the model as fishery removals might be. However, the predation index developed here represents the best available information on the relative impact of cod predation on snow crab mortality for use in correlative models like the GAMs below.
+
+### Disease
+
+Bitter crab syndrome is a fatal disease in snow crab caused by a parasitic dinoflagellate (Meyers et al. 1996). The presence of disease is recorded in the NMFS summer trawl survey data for the subset of crab that are individually measured based on a visual inspection. Diseased crab are visually detected by a pink-orange discoloration of the carapace and opaque hemolymph. The spatial distribution of bitter crab disease is predominantly on the northeastern shelf where smaller immature animals are found (\autoref{all_disease}). For this analysis, disease prevalence was calculated simply as the number of infected individuals identified in the survey divided by the total number of individuals caught in the survey for the respective maturity states (\autoref{grid_covar}).
+
+### Cannibalism
+
+Cannibalism has been proposed as a potential driver of the dynamics of snow crab in eastern Canada (Lovrich et al., 1997). In laboratory studies, crab smaller than 55 mm carapace width were at high risk of being cannibalized when housed with larger crab (Lovrich et al., 1997). Crab larger than 55 mm carapace width were much less likely to be cannibalized, but the frequency of injury could be high. Here we developed an index of cannibalism based on two aspects of the spatial distribution of snow crab: the overlap of crab smaller than 55 mm carapace width with crab larger than 95 mm carapace width (\autoref{distribution_males_le55}) and the density of crab larger than 95 mm carapace width within the shared space. The proportion of 55 mm carapace width crab in the overlapping area represents the 'exposure' of the smaller population to cannibalism and the density of crab larger than 95 mm carapace width within that area represents the potential 'intensity' of cannibalism in the shared area. We calculated an index of cannibalism over time as the product of exposure and intensity. Consequently, a scenario in which there was large overlap, but low densities of large crab would result in a low cannibalism index value. Similarly, a scenario in which there was low overlap, but high densities would result in a low cannibalism index value. This produces an index that is comparable with estimated mortality--a higher cannibalism index would be expected to be associated with higher mortality if cannibalism is a strong driver of mortality in the size ranges of crabs modeled here.
+
+The proportion of smaller than 55 mm carapace width crab overlapping with larger than 95 mm carapace width crab was calculated by finding the intersection of the station IDs at which at least one crab of both size classes was observed. The density of crab larger than 95 mm carapace width was calculated as the number of >95 mm carapace width crab observed at those stations multiplied by the area swept. This exercise was also done by 5 mm size bins to show the overlap of small crab of different sizes with large crab (\autoref{cannibalism_size_raw}). The final index aggregated all crab smaller than 55 mm carapace width (\autoref{cannibalism}). Indices of cannibalism were only included in the immature models given laboratory observations indicate cannibalism is rare among crab of similar sizes.
+
+### Fisheries data
+Snow crab are caught both in a directed fishery (i.e. a fishery aimed at capturing snow crab) and non-directed fisheries (i.e. fisheries with targets other than snow crab). In the directed fishery, under-sized and/or dirty shelled crab are often discarded. Snow crab are discarded from non-directed fisheries using a variety of gear types (including trawl, pots, hook-and-line) and targeting a variety of species (e.g. Pacific cod, walleye pollock, and yellowfin sole) that operate over a wide fraction of the Bering Sea shelf (\autoref{bycatch_binned}). \autoref{bycatch_binned} is plotted in log space, so it appears that the bycatch is spread widely over the shelf, but in normal space, the bycatch is more concentrated (e.g. \autoref{bycatch_binned_2018}). The location of the centroids of the bycatch have moved over time and increases in latitude correspond with warm years in which reduced ice extent allowed for fishing farther north (\autoref{bycatch_centroids}). Bycatch in groundfish trawl fisheries are by far the largest sources of bycatch mortality (\autoref{bycatch}). Data on discards and bycatch of snow crab are collected by at-sea observers on fishing boats and the percent observer coverage ranges from 10% to 100%, depending on the fishery. Indices of the relative mortality imposed by fisheries discards and bycatch were calculated here as the ratio of the observed numbers of crab discarded or bycaught in a given year divided by the estimated population numbers in a given year. Only discard mortality is considered for the directed fishery in our models because the range of sizes modeled exclude the largest males, which are the targets of the commercial fishery for snow crab.
+
+### Crab density
+The numbers of crab estimated from the population dynamics models were also used as covariates in the GAMs. Increasing densities of crab could capture aspects of intraspecific competition not captured in other covariates. Each respective model of mortality incorporates the population size of the corresponding maturity state given their spatial co-occurence. Immature mortality also incorporates mature population size because crab are thought to move more extensively after maturing in the pursuit of mates, which suggests that their overlap with the immature portion of the population could be larger than the snapshot the survey provides. This increased overlap could result in impacts on mortality, hence the inclusion of mature population size in the immature mortality models.
+
+## Generalized additive models
+Generalized additive models (GAMs) were used in the R programming language (package mgcv; Wood, 2011) to relate changes in estimated mortality by maturity state and year, $m_{p,y}$ to environmental covariates by maturity state and year, $\phi_{m,y}$, because of their flexibility in fitting potential non-linear relationships. Models were first fitted in which all relevant covariates were included in the model of the form:
+
+\begin{equation} m_{p,y} = s(\phi_{m,y}) + \epsilon_{i} \end{equation}
+
+where 's()' is a smoothing function based on thin-plate splines, $\phi$ is a matrix of environmental covariates scaled to mean 0 and standard deviation 1, and $\epsilon$ is normally distributed error. The number of knots allowed in the thin-plate splines were restricted to 3 given the relatively short time series and number of potential stressors. Significance of covariates for the full models can be seen in \autoref{tab.gam1} and \autoref{tab.gam2} and the resulting smooths in \autoref{gam_smooth_imm} and \autoref{gam_smooth_mat}. Model diagnostics were acceptable given relatively short time series (\autoref{gam_check_full_imm} & \autoref{gam_check_full_mat}). Leave-one out cross validation was performed for the models by systematically excluding a year of data, refitting the model, and recording the deviance explained and significance of the covariates. The consistent significance of specific covariates in this exercise lends some credence that those covariates' influence in the model was not the result of outliers (Figure 2e).  Some collinearity existed among covariates (\autoref{pairs_plot_imm} & \autoref{pairs_plot_mat}), but none of the collinear variables were significant in the models. 
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+   \hline
+A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
+  (Intercept) & 0.6052 & 0.0505 & 11.9819 & $<$ 0.0001 \\ 
+   \hline
+B. smooth terms & edf & Ref.df & F-value & p-value \\ 
+  s(temperature) & 1.9964 & 2.3824 & 4.5850 & 0.0204 \\ 
+  s(disease) & 1.0000 & 1.0000 & 1.3152 & 0.2650 \\ 
+  s(discard) & 1.0000 & 1.0000 & 0.4639 & 0.5036 \\ 
+  s(bycatch) & 1.0000 & 1.0000 & 1.1509 & 0.2961 \\ 
+  s(mat\_pop) & 1.8356 & 1.9601 & 4.0153 & 0.0261 \\ 
+   \hline
+\end{tabular}
+\caption{GAM output for full model predicting mature mortality. Deviance explained = 66.8\%. 'discard' refers to discarded crab from the directed fishery.} 
+\label{tab.gam1}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+   \hline
+A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
+  (Intercept) & 0.1750 & 0.0121 & 14.4737 & $<$ 0.0001 \\ 
+   \hline
+B. smooth terms & edf & Ref.df & F-value & p-value \\ 
+  s(disease) & 1.6017 & 1.8194 & 1.3939 & 0.3717 \\ 
+  s(temperature) & 1.5788 & 1.7957 & 6.0398 & 0.0067 \\ 
+  s(mat\_pop) & 1.9039 & 1.9757 & 4.5453 & 0.0352 \\ 
+  s(predation) & 1.0000 & 1.0000 & 0.1465 & 0.7064 \\ 
+  s(bycatch) & 1.0000 & 1.0000 & 1.1798 & 0.2917 \\ 
+  s(cannibalism) & 1.6038 & 1.8388 & 1.5158 & 0.3215 \\ 
+   \hline
+\end{tabular}
+\caption{GAM output for full model predicting immature mortality. Deviance explained = 72.2\%. } 
+\label{tab.gam2}
+\end{table}
+
+
+Models that excluded insignificant variables from each full model were used in out-of-sample prediction and randomization tests (see \autoref{tab.gam3} & \autoref{tab.gam4} for covariate significance and deviance explained and \autoref{gam_check_trim_imm} & \autoref{gam_check_trim_mat} for model diagnostics). One thousand iterations of a randomization test were performed in which the covariate time series were randomized, the models refit, and the deviance explained recorded. This test was aimed at understanding if the explanatory power of the model was a result of the number of covariates considered and the flexibility of the model or if the results were an indication of some underlying signal in the data. If the deviance explained by the model using the non-randomized data exceeded the 95th quantile of the randomization trials, the deviance explained from the fitted model is less likely to be a result of over-fitting resulting from too many covariates or too flexible smooths. The deviance explained from both of the trimmed models exceeded the 95th quantile of deviance explained from the randomization (\autoref{imm_rando} & \autoref{mat_rando}).  Out-of-sample predictions were made by excluding the last 1,2, and 3 years of data, refitting the model, then attempting to predict the held out data based on the covariates observed in those years (see figure 2 of the main text for a discussion and \autoref{predict_big} for a larger version of figure 2). 
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+   \hline
+A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
+  (Intercept) & 0.6052 & 0.0497 & 12.1798 & $<$ 0.0001 \\ 
+   \hline
+B. smooth terms & edf & Ref.df & F-value & p-value \\ 
+  s(temperature) & 1.8723 & 2.2591 & 4.5071 & 0.0212 \\ 
+  s(mat\_pop) & 1.8819 & 1.9750 & 7.4877 & 0.0025 \\ 
+   \hline
+\end{tabular}
+\caption{GAM output for trimmed model predicting mature mortality. Deviance explained = 62.9\%} 
+\label{tab.gam3}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+   \hline
+A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
+  (Intercept) & 0.1750 & 0.0130 & 13.4588 & $<$ 0.0001 \\ 
+   \hline
+B. smooth terms & edf & Ref.df & F-value & p-value \\ 
+  s(temperature) & 1.6929 & 1.9043 & 8.0575 & 0.0016 \\ 
+  s(mat\_pop) & 1.9760 & 1.9981 & 6.2179 & 0.0077 \\ 
+   \hline
+\end{tabular}
+\caption{GAM output for full model predicting immature mortality. Deviance explained = 59.1\%} 
+\label{tab.gam4}
+\end{table}
+
+Impacts of assumptions about error structure were explored by assuming beta distributed data in the GAM and transforming the continuous total mortality rates to an exploitation rate ranging from 0 to 1. This transformation still resulted in mature population and temperature being the most important variables related to mortality, however the deviance explained decreased to 54.7% and 66.8% for mature and immature mortality, respectively, compared to 66.8% and 72.2% for the model presented in the main text. A potential shortcoming of the method presented in the main text is that predicted mortality could be less than zero. This was not the case in any of the model fittings, and would only possibly present a problem if the model was extrapolated to data beyond the observed ranges. A potential fix to this is to log the response variable, but this resulted in unacceptable patterns in the residuals, so this model was rejected.
+
+
+# How could temperature relate to mortality mechanistically?
+
+Increased temperature was consistently correlated with increased estimated mortality in our models, but the range of temperatures observed were not beyond the thermal tolerances of snow crab. Foyle et al. (1989) captured 20 snow crab of carapace size 85-95 mm  in 1986 and raised them in the lab in a range of thermal regimes to understand the impacts of increased temperatures on mortality and caloric requirements for snow crab. In addition to identifying the thermal tolerances of snow crab (crab stop eating around 12 degrees C), Foyle et al. observed a doubling of caloric requirements for snow crab held in 3 degrees Celsius water as compared to those in 0 degree waters. Here we calculated an index of the caloric requirements for the modeled fraction of the population of snow crab in the eastern Bering Sea over time using the abundance at size of snow crab observed in the NMFS survey, the temperature occupied of crab at size calculated from observations of bottom temperature in the NFMS survey, and the observations of caloric requirements of snow crab by temperature produced by Foyle et al. (1989). The relationship between temperature and the caloric requirements of snow crab ($kCal_{t}$) reported by Foyle et al. was:
+
+\begin{equation} kCal_{s=90mm,t} = 2.2*e^{\frac{-(t-5.2)^2}{30.7}} \end{equation}
+
+Snow crab numbers at size (s) by year (y) ($N_{s,y}$) and the temperature occupied at size by year ($T_{s,y}$) were calculated as described above. The caloric requirements reported in Foyle et al. were based on observations of crab that were 85-95 mm carapace width, so these results need to be extrapolated to the range of sizes used in this analysis. Kleiber's law (Kleiber, 1947) states there is a consistent relationship between the body mass and metabolic requirements of organisms (kCal). The relationship has been generalized as:
+
+\begin{equation} kCal_{m} = mass^{0.75} \end{equation}
+
+Calculating the metabolic requirements for snow crab at size by year, $kCal^{snow}_{s,y}$, can be calculated by evaluating the caloric requirements of 90mm carapace width crab at a given temperature were calculated, then scaling that up or down based on Kleiber's law:
+
+\begin{equation} kCal^{snow}_{s,y} = \frac{2.2*e^{\frac{-(t-5.2)^2}{30.7}}}{300^{0.75}}w_{s}^{0.75} \end{equation}
+
+Caloric requirements increased sharply in 2018 and to explore potential impacts of this increase, we analyzed the weight at size data available (\autoref{wt_size_year_temp}). GAMs were used to predict observed weights at size $w_{i,s,y}$ using the bottom temperature in which the crab was collected, $t_{i}$, measured carapace width $cw_{i}$, and year as a factor:
+
+\begin{equation} w_{i,s,y} = s(cw_{i}) + s(t_{i}) + year + \epsilon \end{equation}
+
+The GAMs explained 97.4% of the deviance in the weights of snow crab and all covariates were significant (\autoref{tab.gam5}). 
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+   \hline
+A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
+  (Intercept) & 218.5199 & 2.2252 & 98.2019 & $<$ 0.0001 \\ 
+  as.factor(AKFIN\_SURVEY\_YEAR)2015 & 6.4525 & 3.1690 & 2.0361 & 0.0419 \\ 
+  as.factor(AKFIN\_SURVEY\_YEAR)2017 & 12.6093 & 2.4840 & 5.0763 & $<$ 0.0001 \\ 
+  as.factor(AKFIN\_SURVEY\_YEAR)2018 & -11.9217 & 6.2536 & -1.9064 & 0.0568 \\ 
+  as.factor(AKFIN\_SURVEY\_YEAR)2019 & 4.0886 & 2.7473 & 1.4882 & 0.1369 \\ 
+   \hline
+B. smooth terms & edf & Ref.df & F-value & p-value \\ 
+  s(WIDTH) & 6.4225 & 7.5862 & 6340.9617 & $<$ 0.0001 \\ 
+  s(GEAR\_TEMPERATURE) & 1.9362 & 2.3359 & 17.0800 & $<$ 0.0001 \\ 
+   \hline
+\end{tabular}
+\caption{GAM output for model predicting male snow crab weight. Deviance explained = 97.4\%} 
+\label{tab.gam5}
+
+\end{table}
+
+In general, higher temperatures were associated with higher weight at size (\autoref{wt_size_smooth}). The weight at size curves for 2015 and 2017 were scaled significantly higher than the base year of 2011, whereas the year 2018 was marginally significantly lower (p=0.057). The marginal significance likely resulted from the relatively small sample size of weight at size available in 2018 (N=27), but the effect size was large (the coefficient associated with 2017 was 12.60; the coefficient associated with 2018 was -11.92) which translated to large differences in estimated weight at size between the years reported in the main document. Previous studies looking at the impacts of starvation on the weight at size of snow crab (e.g. Hardy et al., 2000) reported small changes in weight at size (roughly 2.6% of weight lost over 5 months), but larger changes in the weight of the hepatopancreas. However, there are some key differences between these studies and the field observations we report. First, the maximum observed mortality was 20% in the starvation studies; the mortality levels estimated in the Bering Sea exceeded 90% in some years. Second, the starvation experiments were in laboratory environments where no foraging occurred. Seventy crab were confined in containers measuring 122 x 183 x 40 cm in Hardy et al. (2000), which greatly restricted movement and would presumably impact caloric expenditure and the initiation of catabolism of muscle tissue.
+
+
+
+\newpage
+
+
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{tanner}Observed abundance by carapace width of Tanner crab in the NMFS summer survey. "}
+
+include_graphics("plots/tanner.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{slope}Map of eastern Bering Sea slope habitat (colors). "}
+
+include_graphics("plots/ebs_slope.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{fish_cpue}Fishery cpue (top) and number of crab caught in the directed snow crab fishery (bottom). Vertical dashed line represents the introduction of individual transferrable quota management."}
+
+include_graphics("plots/fish_cpue.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{maturity_facet}Observed proportion of mature new shell  crab in the NMFS summer survey. Red line represents the median over years and the blue lines are the observed data. Chela height data were not collected in years without a blue line. These data are used to separate the numbers at size into mature and immature states for the input data to the population dynamics model. "}
+
+include_graphics("plots/maturity_facet.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{linear_growth}Empirical relationship between pre- and post-molt size (left) derived from crab captured in the wild pre-molt and observed to molt in the lab. Calculated size-transition matrix used in the population dynamics model (right). "}
+
+
+include_graphics("plots/model_growth.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{select_map}Locations of the BSFRF experimental trawls to evaluate the capture efficiency of the NMFS summer trawl survey for snow crab in the eastern Bering Sea. "}
+
+
+include_graphics("plots/BSFRF_map_plots.jpg")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{select_data}Inferred selectivity from the BSFRF experimental trawls. "}
+
+
+include_graphics("plots/select_data.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{inc_complex}Fits of models with increasing complexity in  mortality and catchability. Index of abundances are on the left with observations in black dots with 95\\% confidence intervals; colored lines are model fits. Size composition data are at the right with observations in box plots (aggregated over year) and colored lines are model fits. "}
+
+include_graphics("plots/mod_buildup.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{inc_comp_proc}Estimated processes from model with increasingly complex time-variation in mortality and catchability. "}
+
+
+include_graphics("plots/mod_comp.png")
+
+```
+
+\newpage
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{expand_size_fits_imm} Fits for individual years to immature size composition data from a model in which mortality varied over time. "}
+
+
+include_graphics("plots/imm_size_comp_all.png")
+
+```
+
+\newpage
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{expand_size_fits_mat} Fits for individual years to mature size composition data from a model in which mortality varied over time. "}
+
+
+include_graphics("plots/mat_size_comp_all.png")
+
+```
+
+\newpage
+
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{sim_est_q} Estimates of catchability by maturity state (black lines) compared to the underlying values (red line) from simulations testing the estimation ability of the population dynamics models.  "}
+
+
+include_graphics("plots/sim_catchability.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{sim_est_m}Estimates of mortality by maturity state (black lines) compared to the underlying values (red line) from simulations testing the estimation ability of the population dynamics models.  "}
+
+
+include_graphics("plots/sim_mortality.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{sim_rec}Estimates of recruitment (black lines) compared to the underlying values (red line) from simulations testing the estimation ability of the population dynamics models.  "}
+
+
+include_graphics("plots/sim_recruitment.png")
+
+```
+
+\newpage
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{sens_fits} Model fits from sensitivity tests. Indices of abundances are on the left with observations in black dots with 95\\% confidence intervals; colored lines are model fits. Size composition data are at the right with observations in box plots (aggregated over year) and colored lines are model fits. "}
+
+
+include_graphics("plots/sens_mod_fits.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{sens_ests} Estimates of mortality and catchability by maturity state over sensitivity runs. Lines are colored based on the smoothness penalty on mortality. "}
+
+
+include_graphics("plots/sens_m_q.png")
+
+```
+
+\newpage
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{split_mat}Size at which half of the crab in the population are mature over time (note, this is not the probability of undergoing terminal molt, rather the proportion of the number of mature vs. immature crab at size in the population)."}
+
+
+include_graphics("plots/mat_midpt.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{grid_covar}Calculated covariates incorporated into GAMs to relate stressors to estimated mortality. Two covariates (discard and predation) are only relevant for one maturity state based on the critical role size plays in the process (i.e. discards are primarily relatively large crab and predation is primarily smaller crab). "}
+
+
+include_graphics("plots/grid_covariates.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{bottom_temp}Observed bottom temperature at the time of the NMFS summer survey. Less than 2 degrees C represents the cold pool, seen in green and blue here. "}
+
+
+include_graphics("plots/bottom_temp.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{snow_dist}Distribution and intensity of densities (in log numbers) of crab <55 mm carapace width in the NMFS summer survey. "}
+
+
+include_graphics("plots/all_recruit.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{temp_occupied} Temperature occupied over time of crab by 5 mm size bin. "}
+
+
+include_graphics("plots/temp_by_size.png")
+
+```
+
+\newpage
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{temp_by_mat}Temperature occupied over time of crab by maturity state defined by the size at which 50\\% of crab are mature according to chela height. "}
+
+
+include_graphics("plots/temp_by_mat.png")
+
+```
+
+\newpage
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{cod_centroids}Centroids of abundance for Pacific cod in the Bering Sea over time (left). Right panels show the time series of the centroids broken down by latitudinal and longitudinal components. "}
+
+
+include_graphics("plots/cod_centroids.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{cod_pred_data}Location and number of crab observed in cod stomachs over time. These are the raw data used to calculate crab consumption by cod and have not been adjusted for sampling effort, but provide background for the spatial distribution of predation over time. "}
+
+
+include_graphics("plots/cod_pred_data_lg.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{cod_consumption_raw}Consumption of crab by Pacific cod at size over time. Dashed line represents the size at which crab enter the population dynamics model presented in the text. "}
+
+
+include_graphics("plots/cod_consumption_raw.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{sizes_of_missing_crab} Numbers at size over time of snow crab (left). Observed numbers of crab (red line) in 2019 and 2021 vs. projected numbers of crab from 2018 and 2019 given a mortality equal to 0.27 (the assumed value in the assessment; top left). Numbers of missing crab at size (red line) with the size of crab beneath which cod predate upon (dashed vertical black line). "}
+
+
+include_graphics("plots/sizes_of_missing_crab.png")
+
+```
+
+
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{all_disease} Location and intensity of bitter crab disease over time from visual prevalence observations in the NMFS summer survey. "}
+
+
+include_graphics("plots/all_disease.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{distribution_males_le55} Overlap of large males (>95 mm carapace width) and males smaller than 55 mm carapace width. Opacity of the dot represents the density of crab. Blue represents overlapping distribution. Green and red represent non-overlapping observations of small and large males, respectively. "}
+
+
+include_graphics("plots/distribution_males_le55.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{cannibalism_size_raw}Relative risk at size for cannibalism over time. "}
+
+
+include_graphics("plots/cannibalism_size_raw.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{cannibalism} Times series by size of the density of large males in overlapping space (top), the propotion of small males in the overlapping area (middle), and the product of the two (bottom), which is used as an index of cannibalism in the models relating estimated mortality to environmental stressors. "}
+
+
+include_graphics("plots/cannibalism.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{bycatch_binned} Location and intensity of bycatch of snow crab over time in log space."}
+
+
+include_graphics("plots/bycatch_binned.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{bycatch_binned_2018} Comparison of location and intensity of bycatch in 2018 for natural and log space. "}
+
+
+include_graphics("plots/bycatch_binned_2018.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{bycatch_centroids}Centroids of bycatch over time calculated over the entire year (left). Centroids broken into time series of latitudinal and longitudinal components calculated over the entire year and during the months December through March which roughly overlap with mating."}
+
+
+include_graphics("plots/bycatch_centroids.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{bycatch}Bycatch in numbers by gear types reported from NMFS observer programs. "}
+
+
+include_graphics("plots/bycatch.png")
+
+```
+
+\newpage
+
+
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{gam_smooth_imm} Smooths resulting from the full model estimating the relationship between environmental covariates and immature mortality. "}
+
+
+include_graphics("plots/gam_smooths_imm.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{gam_smooth_mat}Smooths resulting from the full model estimating the relationship between environmental covariates and mature mortality. "}
+
+
+include_graphics("plots/gam_smooths_mat.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{gam_check_full_imm}Diagnostic plots for the full model relating immature mortality and environmental stressors. "}
+
+
+include_graphics("plots/gam_check_full_imm.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{gam_check_full_mat}Diagnostic plots for the full model relating mature mortality and environmental stressors "}
+
+
+include_graphics("plots/gam_check_full_mat.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{pairs_plot_imm}Pairs plots displaying the correlation between covariates for immature crab. "}
+
+
+include_graphics("plots/pairs_plot_imm.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{pairs_plot_mat}Pairs plots displaying the correlation between covariates for mature crab. "}
+
+
+include_graphics("plots/pairs_plot_mat.png")
+
+```
+
+\newpage
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{gam_check_trim_imm}Diagnostic plots for the trimmed model relating immature mortality and environmental stressors.  "}
+
+
+include_graphics("plots/gam_check_trim_imm.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{gam_check_trim_mat}Diagnostic plots for the trimmed model relating mature mortality and environmental stressors.  "}
+
+
+include_graphics("plots/gam_check_trim_mat.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{imm_rando}Results of randomization trials for the trimmed model relating estimated immature mortality to environmental stressors. Grey bars represent the number of trials in which the randomized model explained the deviance on the x-axis. Dashed vertical red line represents the 95th quantile of the deviance explained by the randomized trials. Blue line represents the deviance explained with the real data. "}
+
+
+include_graphics("plots/rando_imm.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{mat_rando}Results of randomization trials for the trimmed models relating estimated immature mortality to environmental stressors. Grey bars represent the number of trials in which the randomized model explained the deviance on the x-axis. Dashed vertical red line represents the 95th quantile of the deviance explained by the randomized trials. Blue line represents the deviance explained with the real data. "}
+
+
+include_graphics("plots/rando_mat.png")
+
+```
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{predict_big}Predictive skill of the GAMs for immature and mature mortality. Reproduced from figure 2 in the main text to provide better detail."}
+
+
+include_graphics("plots/predict_big.png")
+
+```
+
+
+\newpage
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{wt_size_year_temp}Observed weight at size over time colored by temperature (Celcius) at which the crab was collected."}
+
+
+include_graphics("plots/wt_size_year_temp.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{wt_size_smooth}GAM estimated relationships between temperature and carapace width on observed weights of crab."}
+
+include_graphics("plots/wt_size_smooth.png")
+
+```
+
+\newpage
