@@ -140,6 +140,20 @@ ggplot()+
 dev.off()
 
 
+
+all_wt_m<-filter(survDAT,!is.na(WEIGHT)&SEX==1,GEAR_TEMPERATURE<5,AKFIN_SURVEY_YEAR>1982,SHELL_CONDITION<=2)
+ggplot()+
+  geom_point(data=all_wt_m,
+             aes(x=WIDTH,y=(WEIGHT),col=(GEAR_TEMPERATURE)),alpha=.5)+
+  facet_wrap(~AKFIN_SURVEY_YEAR)+
+  scale_colour_distiller(palette="Spectral")+
+  labs(colour="Temp")+
+  geom_line(data=wt_at_s,aes(x=Size,y=Weight*1000))+
+  theme_bw()+  theme(legend.position=c(.83,.2))+
+  xlab("Carapace width (mm)")+
+  ylab("Weight (g)")
+
+
 #=================================
 # calculate calories required
 #=================================

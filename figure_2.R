@@ -607,7 +607,7 @@ covars_imm$mat_pop[which(!is.na(match(covars_imm$year,years)))]<-scale(tot_mat_p
 
 covars_mat$temperature[which(!is.na(match(covars_mat$year,names(wtd_avg_temp_occ_mat))))]<-scale(wtd_avg_temp_occ_mat[which(!is.na(match(names(wtd_avg_temp_occ_mat),covars_mat$year)))])
 covars_mat$disease[which(!is.na(match(covars_mat$year,use_disease_mat$AKFIN_SURVEY_YEAR)))]<-scale(use_disease_mat$med_dis[which(!is.na(match(use_disease_mat$AKFIN_SURVEY_YEAR,covars_mat$year)))])
-covars_mat$cannibalism[which(!is.na(match(covars_mat$year,cannibal_ind_mat$year)))]<-scale(cannibal_ind_mat$med_cannib[which(!is.na(match(cannibal_ind_mat$year,covars_mat$year)))])
+#covars_mat$cannibalism[which(!is.na(match(covars_mat$year,cannibal_ind_mat$year)))]<-scale(cannibal_ind_mat$med_cannib[which(!is.na(match(cannibal_ind_mat$year,covars_mat$year)))])
 covars_mat$imm_pop[which(!is.na(match(covars_mat$year,years)))]<-scale(tot_imm_pop[which(!is.na(match(years,covars_mat$year)))])
 covars_mat$mat_pop[which(!is.na(match(covars_mat$year,years)))]<-scale(tot_mat_pop[which(!is.na(match(years,covars_mat$year)))])
 
@@ -656,19 +656,29 @@ use_wts<-filter(wt_size,Size%in%sizes)
 
 common_yrs<-intersect(alt_pred$Year,rownames(pred_n_size_imm))
 
+
+#==should I be using predicted or observed?
 use_imm<-imm_n_at_size_obs[which(!is.na(match(rownames(pred_n_size_imm),common_yrs))),]
 use_imm_sel<-sweep(use_imm, 2, survey_select, FUN="/")
 use_imm_sel<-sweep(use_imm_sel, 2, use_wts$Weight, FUN="*")
 
+use_mat<-mat_n_at_size_obs[which(!is.na(match(rownames(pred_n_size_mat),common_yrs))),]
+use_mat_sel<-sweep(use_mat, 2, survey_select, FUN="/")
+use_mat_sel<-sweep(use_mat_sel, 2, use_wts$Weight, FUN="*")
 
 last_bin<-ncol(use_imm_sel)
 tot_pred<-alt_pred$X30_85_cons[match(common_yrs,alt_pred$Year)]
 tot_pred<-alt_pred$use_this[match(common_yrs,alt_pred$Year)]
+#tot_pred<-alt_pred$steve_70cm[match(common_yrs,alt_pred$Year)]
 tot_crab<-apply(use_imm_sel[,1:last_bin],1,sum)
+tot_crab_mat<-apply(use_mat_sel[,1:last_bin],1,sum)
+tot_crab_all<-sum(tot_crab+tot_crab_mat)
 
-covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab)
-covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-NA
+# covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab)
+# covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_mat)
 
+covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all)
+covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all)
 
 #==================================
 # plot all covars
@@ -686,6 +696,7 @@ plot_mat<-melt(covars_mat,id=c("year"))
  ggpairs(data=covars_imm,columns=c(2:5,7,8,9))
  dev.off()
 
+ 
  #==time series plots 
  plot_mat$maturity<-"Mature covariates"
  plot_imm$maturity<-"Immature covariates"
@@ -712,6 +723,59 @@ plot_mat<-melt(covars_mat,id=c("year"))
  png("plots/grid_covariates.png",height=8,width=5,res=350,units='in') 
  print(var_on_var_all2)
  dev.off()
+ 
+ #========================================================
+ # simulate mortality trajectories using covariance matrix
+ #========================================================
+ 
+ getADMBHessian <- function(direc){
+   ## This function reads in all of the information contained in the
+   ## admodel.hes file. Some of this is needed for relaxing the covariance
+   ## matrix, and others just need to be recorded and rewritten to file so ADMB
+   ## "sees" what it’s expecting.
+   filename <- file(paste(direc,"admodel.hes",sep=""), "rb")
+   on.exit(close(filename))
+   num.pars <- readBin(filename, "integer", 1)
+   hes.vec <- readBin(filename, "numeric", num.pars^2)
+   hes <- matrix(hes.vec, ncol=num.pars, nrow=num.pars)
+   hybrid_bounded_flag <- readBin(filename, "integer", 1)
+   scale <- readBin(filename, "numeric", num.pars)
+   result <- list(num.pars=num.pars, hes=hes,
+                  hybrid_bounded_flag=hybrid_bounded_flag, scale=scale)
+   return(result)
+ }
+ 
+ admb_outs<-getADMBHessian(direc="C:/Users/cody.szuwalski/Work/snow_down/models/model_vary_m/")
+ cov <- solve(admb_outs$hes)
+ 
+ #==pull the rows of interest for covariance matrix
+ imm_m_ind<-seq(27,59)
+ mat_m_ind<-seq(60,92)
+ 
+ imm_m_cov<-cov[imm_m_ind,imm_m_ind]
+ mat_m_cov<-cov[mat_m_ind,mat_m_ind] 
+
+ #==pull the estimated parameters
+ styr<-1989
+ endyr<-2021
+ years<-seq(styr,endyr)
+ par_file<-"models/model_vary_m/snow_down.par"
+ imm_devs <- scan(par_file,skip=6,n=length(years),quiet=T)
+ mat_devs <- scan(par_file,skip=8,n=length(years),quiet=T)
+ imm_m_mu <- scan(par_file,skip=18,n=2,quiet=T)[1]
+ mat_m_mu <- scan(par_file,skip=18,n=2,quiet=T)[2]
+ 
+ #==little matrix multiplication for simulated 
+ library(MASS)
+ sim_imm_m<-mvrnorm(n=100,mu=imm_devs,Sigma=imm_m_cov)
+ sim_mat_m<-mvrnorm(n=100,mu=mat_devs,Sigma=mat_m_cov) 
+ 
+ trans_sim_imm <- exp(imm_m_mu + sim_imm_m)
+ trans_sim_mat <- exp(mat_m_mu + sim_mat_m)
+ 
+ colnames(trans_sim_imm)<-years
+ colnames(trans_sim_mat)<-years
+ 
 
 #=============================================
 # build models for mortality 
@@ -725,12 +789,24 @@ est_vars<-data.frame(year=years,
 #==mature mortality
 #==================
 #==GAM==============
+ input_dat<-merge(est_vars[,c(1,2)],covars_mat)[,-c(5)]
+ input_dat<-input_dat[complete.cases(input_dat),]
+ colnames(input_dat)[2]<-"dep_var"
+ 
+ mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3)) 
+ summary(mod_base)
+ plot(mod_base,page=1)
+ 
+ plot(scale(input_dat$dep_var),type='l')
+ lines(input_dat$predation,col=2)
+ cor.test(input_dat$dep_var,input_dat$predation)
+ 
  input_dat<-merge(est_vars[,c(1,2)],covars_mat)[,-c(5,8)]
  input_dat<-input_dat[complete.cases(input_dat),]
  colnames(input_dat)[2]<-"dep_var"
 
  
- mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3) )
+ mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3))
  mod_base_t<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(mat_pop,k=3) )
  mod_base_int<-gam(data=input_dat,dep_var~s(temperature,mat_pop,k=8) )
 summary(mod_base)
@@ -771,7 +847,9 @@ my_data <- data.frame(input_dat,
                             high = (preds$fit + 1.96 * preds$se.fit))
 dev_expl<-summary(mod_base)$dev
 
+#==============================
 #==cross validation============
+#==============================
 cv_plot_mat_m<-list()
 use_dat<-input_dat
 dev_expl_cv<-rep(0,nrow(use_dat))
@@ -810,6 +888,48 @@ mat_cv_M_pval<-melt(smooth_cv_outs)
 colnames(mat_cv_M_pval)<-c("Process","Rep","Value")
 mat_cv_M_pval$fits<-"Mature mortality"
 
+#======================================================
+#==test impact of uncertainty in estimates============
+#=====================================================
+unc_plot_mat_m<-list()
+use_dat<-input_dat
+dev_expl_unc<-rep(0,nrow(trans_sim_mat))
+predicted_unc<-matrix(nrow=nrow(trans_sim_mat),ncol=nrow(input_dat))
+unc_yrs<-matrix(nrow=nrow(trans_sim_mat),ncol=nrow(input_dat))
+smooth_table_unc<-list()
+
+for(x in 1:nrow(trans_sim_mat))
+{
+  unc_dat<-use_dat
+  use_dat$dep_var<-trans_sim_mat[x,  which(!is.na(match(colnames(trans_sim_mat),use_dat$year)))]
+  mod_unc<-gam(data=use_dat,dep_var~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3) )
+
+  dev_expl_unc[x]<-summary(mod_unc)$dev.expl
+  predicted_unc[x,]<-predict(mod_unc)
+  unc_yrs[x,]<-use_dat$year
+  smooth_table_unc[[x]]<-summary(mod_unc)$s.table
+}
+
+#==massage data for ggplots
+colnames(predicted_unc)<-unc_yrs[1,]
+rownames(predicted_unc)<-seq(1,nrow(predicted_unc))
+mat_unc<-melt(predicted_unc)
+mat_unc$fits<-"Mature mortality"
+
+mat_unc_M_dev<-data.frame(deviance_explained=dev_expl_unc,
+                         fits="Mature mortality")
+
+in_names<-c("Temperature","Disease","Discard","Bycatch","Mature population")
+smooth_unc_outs<-matrix(ncol=length(smooth_table_unc),nrow=nrow(smooth_table_unc[[1]]))
+
+for(x in 1:length(smooth_table_unc))
+  smooth_unc_outs[,x]<-smooth_table_unc[[x]][,4]
+rownames(smooth_unc_outs)<-in_names
+colnames(smooth_unc_outs)<-seq(1,ncol(smooth_unc_outs))
+
+mat_unc_M_pval<-melt(smooth_unc_outs)
+colnames(mat_unc_M_pval)<-c("Process","Rep","Value")
+mat_unc_M_pval$fits<-"Mature mortality"
 
 #==prediction==================
 
@@ -905,6 +1025,10 @@ plot(mod_base,page=1)
 
 dev_expl<-summary(mod_base)$dev
 
+
+# plot(input_dat$dep_var,type='l',ylim=c(-4,4))
+# lines(input_dat$predation,col=2)
+# plot(input_dat$dep_var,input_dat$predation)
 #==try betar
 beta_dat<-input_dat
 beta_dat$dep_var<-1-exp(-beta_dat$dep_var)
@@ -974,6 +1098,50 @@ colnames(smooth_cv_outs)<-seq(1,ncol(smooth_cv_outs))
 imm_cv_M_pval<-melt(smooth_cv_outs)
 colnames(imm_cv_M_pval)<-c("Process","Rep","Value")
 imm_cv_M_pval$fits<-"Immature mortality"
+
+#======================================================
+#==test impact of uncertainty in estimates============
+#=====================================================
+unc_plot_imm_m<-list()
+use_dat<-input_dat
+dev_expl_unc<-rep(0,nrow(trans_sim_mat))
+predicted_unc<-matrix(nrow=nrow(trans_sim_mat),ncol=nrow(input_dat))
+unc_yrs<-matrix(nrow=nrow(trans_sim_mat),ncol=nrow(input_dat))
+smooth_table_unc<-list()
+
+for(x in 1:nrow(trans_sim_mat))
+{
+  unc_dat<-use_dat
+  use_dat$dep_var<-trans_sim_imm[x,  which(!is.na(match(colnames(trans_sim_mat),use_dat$year)))]
+  mod_unc<-gam(data=use_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
+  
+  dev_expl_unc[x]<-summary(mod_unc)$dev.expl
+  predicted_unc[x,]<-predict(mod_unc)
+  unc_yrs[x,]<-use_dat$year
+  smooth_table_unc[[x]]<-summary(mod_unc)$s.table
+}
+
+#==massage data for ggplots
+colnames(predicted_unc)<-unc_yrs[1,]
+rownames(predicted_unc)<-seq(1,nrow(predicted_unc))
+imm_unc<-melt(predicted_unc)
+imm_unc$fits<-"Immature mortality"
+
+imm_unc_M_dev<-data.frame(deviance_explained=dev_expl_unc,
+                          fits="Immature mortality")
+
+in_names<-c("Disease","Temperature","Mature population","Immature population","Predation","Bycatch","Cannibalism")
+smooth_unc_outs<-matrix(ncol=length(smooth_table_unc),nrow=nrow(smooth_table_unc[[1]]))
+
+for(x in 1:length(smooth_table_unc))
+  smooth_unc_outs[,x]<-smooth_table_unc[[x]][,4]
+rownames(smooth_unc_outs)<-in_names
+colnames(smooth_unc_outs)<-seq(1,ncol(smooth_unc_outs))
+
+imm_unc_M_pval<-melt(smooth_unc_outs)
+colnames(imm_unc_M_pval)<-c("Process","Rep","Value")
+imm_unc_M_pval$fits<-"Immature mortality"
+
 
 #==prediction==================
 
@@ -1211,4 +1379,55 @@ dev.off()
 
 png('plots/predict_big.png',height=8,width=8,res=350,units='in')
 imm_fits_plot_alt / mat_fits_plot_alt
+dev.off()
+
+
+
+#===================================
+# Uncertainty in estimates sensitivity
+#=====================================
+
+big_dev_ps<-rbind(mat_unc_M_dev,imm_unc_M_dev)
+plot_unc_dev<-ggplot(data=big_dev_ps)+
+  geom_histogram(aes(x=deviance_explained*100),bins=20,fill='blue',alpha=0.5)+
+  theme_bw()+
+  facet_wrap(~fits,ncol=1)+
+  scale_x_continuous(breaks=c(0,50,100),limits=c(0,100))+
+  xlab("% deviance explained")+
+  scale_y_continuous(position = "right")
+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())+
+  theme( strip.background = element_blank(),
+         strip.text.x = element_blank(),
+         panel.border = element_blank(),
+         panel.background = element_blank(),
+         axis.title.y=element_blank(),
+         axis.text.y=element_blank(),
+         axis.ticks.y=element_blank(),
+         axis.title.x=element_blank(),
+         axis.text.x=element_blank(),
+         axis.ticks.x=element_blank()
+  )+
+ 
+
+
+
+
+big_unc_ps<-rbind(mat_unc_M_pval,imm_unc_M_pval)
+df2<-data.frame(vline=c(0.055,0.05),fits=c("Mature mortality","Immature mortality"))
+plot_pval_unc<-ggplot()+
+  geom_histogram(data=big_unc_ps,aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
+  theme_bw()+
+  xlim(-0.1,1)+
+  geom_vline(data=df2,mapping=aes(xintercept=vline),lty=2)+
+  facet_wrap(~fits,ncol=1)+
+  theme( legend.position=c(.85,.255),
+         legend.key=element_blank(),
+         panel.grid.minor = element_blank(),
+         panel.grid.major = element_blank())+
+  xlab("p-value")
+
+png("plots/unc_pval_dev.png",height=7,width=10,res=400,units='in')
+(plot_pval_unc | plot_unc_dev) + plot_layout(widths = c(2, 1))
 dev.off()

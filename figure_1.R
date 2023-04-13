@@ -49,7 +49,7 @@ for(w in 1:length(AllStation))
   AllStnLoc[w,1]<-temp$MID_LATITUDE[1]
   AllStnLoc[w,2]<-temp$MID_LONGITUDE[1]
 }
-
+sum(nchar(AllStation)==4)
 # plot(AllStnLoc[,1]~AllStnLoc[,2],cex=.3)
 # text(AllStation,x=AllStnLoc[,2],y=AllStnLoc[,1])
 # nbs_bound<-data.frame(lat=c(62.1,62.1,61.1,61.1,60.5,60.5),
@@ -165,11 +165,14 @@ plot(apply(num_M_101,1,sum,na.rm=T)[-1]~SurvYR[-1],type='l',ylab='total number o
 #================================
 nbs_survDAT<-read.csv("C:/data/NBS crab data/nbs_opilio_crabhaul.csv",header=T)
 nbs_drvYear<-as.numeric(substr(nbs_survDAT$CRUISE,1,4))
+nbs_survDAT$AKFIN_SURVEY_YEAR<-nbs_drvYear
 nbs_SurvYR<-unique(nbs_drvYear)
 nbs_AllStation<-unique(nbs_survDAT$GIS_STATION)
 
-colnames(nbs_survDAT)
-
+# ebs_2019<-filter(survDAT,AKFIN_SURVEY_YEAR==2019)
+# nbs_2019<-filter(nbs_survDAT,AKFIN_SURVEY_YEAR==2019)
+# write.csv(ebs_2019,"ebs_2019.csv")
+# write.csv(nbs_2019,"nbs_2019.csv")
 #==plot GIS stations
 nbs_AllStnLoc<-matrix(ncol=2,nrow=length(nbs_AllStation))
 for(w in 1:length(nbs_AllStation))
@@ -533,7 +536,8 @@ size_yr <- size_yr + geom_density_ridges(aes(x=SIZE_CLASS_MM, y=SURVEY_YEAR, hei
   labs(x="Carapace width (mm)") +
   xlim(25,125)+
   #scale_fill_manual(values=c("blue4"))+
-  scale_y_continuous(name='Year',position='right')
+  scale_y_continuous(name='Year',position='right')+
+  geom_vline(aes(xintercept=101),lty=2)
 
 #========================================
 # Temperature occupied
