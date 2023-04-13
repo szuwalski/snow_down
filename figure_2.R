@@ -42,6 +42,7 @@ library(patchwork)
 library(GGally)
 library(itsadug)
 library(gratia)
+library(scam)
 
 annotation_custom2 <-   function (grob, xmin = -Inf, xmax = Inf, ymin = -Inf,ymax = Inf, data){ layer(data = data, 
                                      stat = StatIdentity, 
@@ -106,7 +107,36 @@ used_par<-c(94,160,162,230)
 
 AIC<-2*used_par+2*out_like
 
+#===plot outputs building complexity====
+plot_build_up<-data.frame(values=c(outs[[1]]$`natural mortality`[,1],
+                    outs[[1]]$`mature natural mortality`[,1],
+                    outs[[1]]$`survey selectivity`[,1],
+                    outs[[1]]$`mature survey selectivity`[,1]),
+           process=c(rep("Immature mortality",length(outs[[1]]$`natural mortality`[,1])),
+                     rep("Mature mortality",length(outs[[1]]$`natural mortality`[,1])),
+                     rep("Immature catchability",length(outs[[1]]$`natural mortality`[,1])),
+                     rep("Mature catchability",length(outs[[1]]$`natural mortality`[,1]))),
+           model="Time-invariant",year=seq(1989,2021))
+in_mod<-c("Invariant","Vary M","Vary q","Vary both")
+for(x in 2:4)
+{  temp<-data.frame(values=c(outs[[x]]$`natural mortality`[,1],
+                                     outs[[x]]$`mature natural mortality`[,1],
+                                     outs[[x]]$`survey selectivity`[,1],
+                                     outs[[x]]$`mature survey selectivity`[,1]),
+                            process=c(rep("Immature mortality",length(outs[[x]]$`natural mortality`[,1])),
+                                      rep("Mature mortality",length(outs[[x]]$`natural mortality`[,1])),
+                                      rep("Immature catchability",length(outs[[x]]$`natural mortality`[,1])),
+                                      rep("Mature catchability",length(outs[[x]]$`natural mortality`[,1]))),
+                            model=in_mod[x],year=seq(1989,2021))
+plot_build_up<-rbind(plot_build_up,temp)
+} 
 
+png("plots/mod_comp.png",height=8,width=8,res=400,units='in')
+ggplot(filter(plot_build_up,year<2020))+
+  geom_line(aes(x=year,y=values,col=model),lwd=2)+
+  facet_wrap(~process,scales='free_y')+
+  theme_bw()
+dev.off()
 
 #==uncertainty in estimates of imm and mat N
 ret <- list()
@@ -137,7 +167,7 @@ mat_sd<-ret$std[which(ret$names=="mat_n_sd")]
 
 #==find r square
 div_n<-1000000000
-in_ind<-2
+in_ind<-1
 plot_mmb<-outs[[in_ind]]$imm_n_obs/div_n
 plot_mmb[plot_mmb==0]<-NA
 
@@ -541,7 +571,6 @@ names(wtd_avg_temp_occ_mat)<-rownames(wide_tmp_occ)
 #=============================
 cannibals<-read.csv('data/cannibal_index.csv',header=T)
 
-
 cannibal_ind_imm<-filter(cannibals,X2<52)%>%
   group_by(X1)%>%
   summarize(med_cannib=mean(value))
@@ -549,7 +578,7 @@ colnames(cannibal_ind_imm)[1]<-"year"
 
 
 #============================
-# fishery data
+# fishery data (numbers at size--used in previous versions)
 #============================
 fish_dat<-readList("data/fisheries_data.txt")
 all_bycatch<-apply(fish_dat$trawl_num_size_obs,1,sum)
@@ -565,6 +594,11 @@ rownames(disc_cat)<-seq(1992,2020)
 bycatch<-fish_dat$trawl_num_size_obs
 colnames(bycatch)<-seq(27.5,132.5,5)
 rownames(bycatch)<-seq(1991,2020)
+
+#============================
+# fishery data (aggregate--used in previous versions)
+#============================
+fish_dat2<-read.csv("data/fisheries_dat.csv")
 
 #=============================
 # make covariate dataframe
@@ -594,8 +628,8 @@ covars_mat<-data.frame(year=seq(1989,2020),
 # Total population numbers (instead of observed)
 # important for calculating impact of given catch/predation on population
 #=========================================================================
-use_mat_sel<-sweep(outs[[take_ind]]$pred_mat_pop_num, 2, survey_select, FUN="/")
-use_imm_sel<-sweep(outs[[take_ind]]$pred_imm_pop_num, 2, survey_select, FUN="/")
+use_mat_sel<-outs[[take_ind]]$pred_mat_pop_num
+use_imm_sel<-outs[[take_ind]]$pred_imm_pop_num
 tot_imm_pop<-apply(use_imm_sel,1,sum)
 tot_mat_pop<-apply(use_mat_sel,1,sum)
 
@@ -607,78 +641,85 @@ covars_imm$mat_pop[which(!is.na(match(covars_imm$year,years)))]<-scale(tot_mat_p
 
 covars_mat$temperature[which(!is.na(match(covars_mat$year,names(wtd_avg_temp_occ_mat))))]<-scale(wtd_avg_temp_occ_mat[which(!is.na(match(names(wtd_avg_temp_occ_mat),covars_mat$year)))])
 covars_mat$disease[which(!is.na(match(covars_mat$year,use_disease_mat$AKFIN_SURVEY_YEAR)))]<-scale(use_disease_mat$med_dis[which(!is.na(match(use_disease_mat$AKFIN_SURVEY_YEAR,covars_mat$year)))])
-#covars_mat$cannibalism[which(!is.na(match(covars_mat$year,cannibal_ind_mat$year)))]<-scale(cannibal_ind_mat$med_cannib[which(!is.na(match(cannibal_ind_mat$year,covars_mat$year)))])
 covars_mat$imm_pop[which(!is.na(match(covars_mat$year,years)))]<-scale(tot_imm_pop[which(!is.na(match(years,covars_mat$year)))])
 covars_mat$mat_pop[which(!is.na(match(covars_mat$year,years)))]<-scale(tot_mat_pop[which(!is.na(match(years,covars_mat$year)))])
 
 #========================
-#==predation, bycatch, and discards need to split out by size class and maturity state
-#==then divide observed covar by the amount of crab in water to make it comparable to a mortality rate
-#==this is the only way the regression makes sense
+#==predation, bycatch, and discards need to be divide observed covar by the amount of 
+#==est crab in water to make it comparable to a mortality rate
 
 #==bycatch
-common_yrs<-intersect(rownames(bycatch),rownames(pred_n_size_imm))
-common_sizes<-intersect(colnames(bycatch),colnames(pred_n_size_imm))
-use_bycatch<-bycatch[which(!is.na(match(rownames(bycatch),common_yrs))),which(!is.na(match(colnames(bycatch),common_sizes)))]
-use_mat<-pred_n_size_mat[which(!is.na(match(rownames(pred_n_size_mat),common_yrs))),which(!is.na(match(colnames(pred_n_size_mat),common_sizes)))]
-use_imm<-pred_n_size_imm[which(!is.na(match(rownames(pred_n_size_imm),common_yrs))),which(!is.na(match(colnames(pred_n_size_imm),common_sizes)))]
+common_yrs<-intersect(fish_dat2$Year,rownames(pred_n_size_imm))
+use_bycatch<-fish_dat2$bycatch[which(!is.na(match(fish_dat2$Year,common_yrs)))]
+bycatch_mort<-scale(use_bycatch/(tot_mat_pop[-length(tot_mat_pop)]+tot_imm_pop[-length(tot_mat_pop)]))
 
-bycat_mat_size<-(use_bycatch/use_mat)
-bycat_imm_size<-(use_bycatch/use_imm)
-
-bycat_imm<-apply(bycat_imm_size,1,median)
-bycat_mat<-apply(bycat_mat_size,1,median)
-
-covars_imm$bycatch[which(!is.na(match(covars_imm$year,as.numeric(names(bycat_imm)))))]<-scale(bycat_imm)
-covars_mat$bycatch[which(!is.na(match(covars_mat$year,as.numeric(names(bycat_mat)))))]<-scale(bycat_mat)
+covars_imm$bycatch<-bycatch_mort
+covars_mat$bycatch<-bycatch_mort
 
 #==discard
-common_yrs<-intersect(rownames(disc_cat),rownames(pred_n_size_imm))
-common_sizes<-intersect(colnames(disc_cat),colnames(pred_n_size_imm))
-use_disc<-disc_cat[which(!is.na(match(rownames(disc_cat),common_yrs))),which(!is.na(match(colnames(disc_cat),common_sizes)))]
-use_mat<-pred_n_size_mat[which(!is.na(match(rownames(pred_n_size_mat),common_yrs))),which(!is.na(match(colnames(pred_n_size_mat),common_sizes)))]
-use_imm<-pred_n_size_imm[which(!is.na(match(rownames(pred_n_size_imm),common_yrs))),which(!is.na(match(colnames(pred_n_size_imm),common_sizes)))]
+common_yrs<-intersect(fish_dat2$Year,rownames(pred_n_size_imm))
+use_discard<-fish_dat2$discard[which(!is.na(match(fish_dat2$Year,common_yrs)))]
+discard_mort<-scale(use_discard/(tot_mat_pop[-length(tot_mat_pop)]))
 
-disc_mat_size<-(use_disc/use_mat)
-disc_imm_size<-(use_disc/use_imm)
+covars_imm$discard<-NA
+covars_mat$discard<-discard_mort
 
-disc_imm<-apply(disc_imm_size,1,mean)
-disc_mat<-apply(disc_mat_size,1,mean)
-
-covars_imm$discard[which(!is.na(match(covars_imm$year,as.numeric(names(disc_imm)))))]<-NA
-covars_mat$discard[which(!is.na(match(covars_mat$year,as.numeric(names(disc_mat)))))]<-scale(disc_mat)
 
 #==predation
-
 alt_pred<-read.csv("data/cod_consump.csv")
 wt_size<-read.csv("data/wt_at_size.csv")
 use_wts<-filter(wt_size,Size%in%sizes)
 
 common_yrs<-intersect(alt_pred$Year,rownames(pred_n_size_imm))
-
-
-#==should I be using predicted or observed?
-use_imm<-imm_n_at_size_obs[which(!is.na(match(rownames(pred_n_size_imm),common_yrs))),]
-use_imm_sel<-sweep(use_imm, 2, survey_select, FUN="/")
-use_imm_sel<-sweep(use_imm_sel, 2, use_wts$Weight, FUN="*")
-
-use_mat<-mat_n_at_size_obs[which(!is.na(match(rownames(pred_n_size_mat),common_yrs))),]
-use_mat_sel<-sweep(use_mat, 2, survey_select, FUN="/")
-use_mat_sel<-sweep(use_mat_sel, 2, use_wts$Weight, FUN="*")
-
 last_bin<-ncol(use_imm_sel)
-tot_pred<-alt_pred$X30_85_cons[match(common_yrs,alt_pred$Year)]
-tot_pred<-alt_pred$use_this[match(common_yrs,alt_pred$Year)]
-#tot_pred<-alt_pred$steve_70cm[match(common_yrs,alt_pred$Year)]
-tot_crab<-apply(use_imm_sel[,1:last_bin],1,sum)
-tot_crab_mat<-apply(use_mat_sel[,1:last_bin],1,sum)
-tot_crab_all<-sum(tot_crab+tot_crab_mat)
 
-# covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab)
-# covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_mat)
+tot_pred<-alt_pred$use_this[match(common_yrs,alt_pred$Year)]
+cod_yrs<-alt_pred$Year[match(common_yrs,alt_pred$Year)]
+
+#==uncomment this line of code and rerun analysis to explore impacts of different indices of predation
+# tot_pred<-alt_pred$steve_50cm[match(common_yrs,alt_pred$Year)]
+# tot_pred<-alt_pred$kir_nbs_ebs[match(common_yrs,alt_pred$Year)]
+tot_crab_imm<-apply(outs[[1]]$`pred_imm_pop_num`[,1:13],1,sum)[-c(32,33)]
+tot_crab_mat<-apply(outs[[1]]$`pred_mat_pop_num`[,1:13],1,sum)[-c(32,33)]
+tot_crab_all<-(tot_crab_imm+tot_crab_mat)
 
 covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all)
 covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all)
+
+#==show the comparison of different potential predation indices
+all_cod<-alt_pred
+colnames(all_cod)[4:5]<-c("Stomach contents","Abundance >50 cm")
+tmp_pred<-all_cod$"Stomach contents"[match(common_yrs,all_cod$Year)]
+tmp1<-data.frame(value=scale(tmp_pred/tot_crab_all),
+           Year=seq(1989,2019),
+           variable="Consumption ratio")
+tmp_pred<-all_cod$"Abundance >50 cm"[match(common_yrs,all_cod$Year)]
+tmp2<-data.frame(value=scale(tmp_pred/tot_crab_all),
+                 Year=seq(1989,2019),
+                 variable="Abundance ratio")
+
+cod_fig<-melt(all_cod,id.vars="Year")
+cod_fig_dat<-rbind(cod_fig,tmp1,tmp2)
+
+raw_cod<-ggplot(filter(cod_fig_dat,variable=="Stomach contents" | variable =="Abundance >50 cm"))+
+  geom_line(aes(x=Year,y=value))+
+  facet_wrap(~variable,scale='free_y',ncol=1)+
+  theme_bw()+
+  expand_limits(y=0)+
+  ylab('')
+
+ratio_cod<-ggplot(filter(cod_fig_dat,variable=="Consumption ratio" | variable =="Abundance ratio"))+
+  geom_line(aes(x=Year,y=value))+
+  facet_wrap(~variable,scale='free_y',ncol=1)+
+  theme_bw()+
+  expand_limits(y=0)+
+  ylab('') +
+  scale_y_continuous(position='right')+
+  geom_hline(data=data.frame(yint=c(0,0)),aes(yintercept=yint),lty=2)
+ 
+png(paste("plots/cod_sensitivity.png",sep=''),height=6,width=8,res=350,units='in') 
+raw_cod | ratio_cod
+dev.off()
 
 #==================================
 # plot all covars
@@ -688,15 +729,19 @@ plot_imm<-melt(covars_imm,id=c("year"))
 plot_mat<-melt(covars_mat,id=c("year"))
 
 #====pairs plots
-
- png(paste("plots/pairs_plot_mat.png",sep=''),height=8,width=8,res=350,units='in') 
- ggpairs(data=covars_mat,columns=c(c(2,3,5,6,9)))
+ png(paste("plots/pairs_plot_mat.png",sep=''),height=8,width=8,res=350,units='in')
+ in_pairs<- covars_mat[which(complete.cases(covars_mat[,c(2,3,5,6,7,8,9)])),c(2,3,5,6,7,8,9)]
+ in_pairs$bycatch<-as.numeric(in_pairs$bycatch)
+ in_pairs$discard<-as.numeric(in_pairs$discard)
+ ggpairs(data=(in_pairs))
  dev.off()
- png(paste("plots/pairs_plot_imm.png",sep=''),height=8,width=8,res=350,units='in') 
- ggpairs(data=covars_imm,columns=c(2:5,7,8,9))
- dev.off()
-
  
+ png(paste("plots/pairs_plot_imm.png",sep=''),height=8,width=8,res=350,units='in') 
+ bleh<- covars_imm[which(complete.cases(covars_imm[,c(2:5,7,8,9)])),c(2:5,7,8,9)]
+ bleh$bycatch<-as.numeric(bleh$bycatch)
+ ggpairs(bleh)
+ dev.off()
+
  #==time series plots 
  plot_mat$maturity<-"Mature covariates"
  plot_imm$maturity<-"Immature covariates"
@@ -726,13 +771,11 @@ plot_mat<-melt(covars_mat,id=c("year"))
  
  #========================================================
  # simulate mortality trajectories using covariance matrix
+ # to be used in 
  #========================================================
  
  getADMBHessian <- function(direc){
-   ## This function reads in all of the information contained in the
-   ## admodel.hes file. Some of this is needed for relaxing the covariance
-   ## matrix, and others just need to be recorded and rewritten to file so ADMB
-   ## "sees" what it’s expecting.
+   ## Thank you, Cole Monnahan
    filename <- file(paste(direc,"admodel.hes",sep=""), "rb")
    on.exit(close(filename))
    num.pars <- readBin(filename, "integer", 1)
@@ -754,7 +797,7 @@ plot_mat<-melt(covars_mat,id=c("year"))
  
  imm_m_cov<-cov[imm_m_ind,imm_m_ind]
  mat_m_cov<-cov[mat_m_ind,mat_m_ind] 
-
+ 
  #==pull the estimated parameters
  styr<-1989
  endyr<-2021
@@ -773,10 +816,31 @@ plot_mat<-melt(covars_mat,id=c("year"))
  trans_sim_imm <- exp(imm_m_mu + sim_imm_m)
  trans_sim_mat <- exp(mat_m_mu + sim_mat_m)
  
+ mle_imm<-exp(imm_m_mu + imm_devs)
+ mle_mat<- exp(mat_m_mu + mat_devs)
+ 
  colnames(trans_sim_imm)<-years
  colnames(trans_sim_mat)<-years
  
-
+ melted<-melt(t(trans_sim_imm))
+ melted2<-melt(t(trans_sim_mat))
+ melted$state<-"Immature"
+ melted2$state<-"Mature"
+ in_plot<-rbind(melted,melted2)
+ 
+ mle_est<-data.frame(X1=seq(1989,2021),value=c(mle_imm,mle_mat),state=c(rep("Immature",33),rep("Mature",33)))
+ 
+ png("plots/covariance_sims.png",height=8,width=5,res=400,units='in')
+ ggplot(filter(in_plot,X1<2020))+
+   geom_line(aes(x=X1,y=value,group=X2),alpha=0.1,color='grey')+
+   geom_line(data=filter(mle_est,X1<2020),aes(x=X1,y=value))+
+   theme_bw()+
+   facet_wrap(~state,scales='free_y',ncol=1)+
+   expand_limits(y=0)+
+   ylab("Estimated mortality")+
+   xlab("Year")
+ dev.off()
+ 
 #=============================================
 # build models for mortality 
 #=============================================
@@ -784,46 +848,53 @@ plot_mat<-melt(covars_mat,id=c("year"))
 est_vars<-data.frame(year=years,
                      est_mat_m=(outs[[take_ind]]$'mature natural mortality')[,1],
                      est_imm_m=(outs[[take_ind]]$'natural mortality')[,1])
- 
+
 #===================
 #==mature mortality
 #==================
 #==GAM==============
  input_dat<-merge(est_vars[,c(1,2)],covars_mat)[,-c(5)]
+ #write.csv(input_dat,"mat_mort.csv")
  input_dat<-input_dat[complete.cases(input_dat),]
  colnames(input_dat)[2]<-"dep_var"
+ input_dat<-input_dat[-c(1),] #==chop first year of data because of initialization conditions
+ #ggpairs(data=input_dat)
  
- mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3)) 
+ mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3)) 
+ mod_base1<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)) 
  summary(mod_base)
  plot(mod_base,page=1)
+ summary(mod_base1)
+ plot(mod_base1,page=1)
  
- plot(scale(input_dat$dep_var),type='l')
- lines(input_dat$predation,col=2)
- cor.test(input_dat$dep_var,input_dat$predation)
+ mod_base_temp<-gam(data=input_dat,(dep_var)~s(temperature,k=4)) 
+ summary(mod_base_temp)
+ plot(mod_base_temp,page=1)
  
- input_dat<-merge(est_vars[,c(1,2)],covars_mat)[,-c(5,8)]
- input_dat<-input_dat[complete.cases(input_dat),]
- colnames(input_dat)[2]<-"dep_var"
+ AIC(mod_base1)
+ AIC(mod_base)
 
- 
- mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3))
  mod_base_t<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(mat_pop,k=3) )
- mod_base_int<-gam(data=input_dat,dep_var~s(temperature,mat_pop,k=8) )
-summary(mod_base)
-plot(mod_base,page=1)
+ summary(mod_base_t)
+ plot(mod_base_t,page=1)
+ 
+#==try shape constrained additive models for mature population--monotonic increasing 
+b <- scam(data=input_dat,dep_var~s(temperature,k=3)+s(mat_pop,bs='mpi')+s(discard,k=3)+s(predation,k=3)+s(bycatch,k=3) )
+b <- scam(data=input_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,bs='mpi')+s(discard,k=3)+s(predation,k=3)+s(bycatch,k=3) )
+b <- scam(data=input_dat,dep_var~disease+s(temperature,k=3)+s(mat_pop,bs='mpi')+discard+predation+bycatch )
+summary(b)
+plot(b,pages=1)
 
-#==try betar
+#==try betar to see if assumptions about distribution impact the 
 beta_dat<-input_dat
 beta_dat$dep_var<-1-exp(-beta_dat$dep_var)
-bm <- gam((dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3),family=betar(link="logit"),data=beta_dat)
-bm_trim <- gam((dep_var)~s(temperature,k=4)+s(mat_pop,k=3),family=betar(link="logit"),data=beta_dat)
-#summary(bm)
-#summary(bm_trim)
-#plot(bm_trim,pages=1)
-#plot(beta_dat$dep_var)
+bm <- gam((dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3),family=betar(link="logit"),data=beta_dat)
+summary(bm)
+plot(bm,pages=1)
 
-gamtabs(mod_base,caption='GAM output for full model predicting mature mortality. Deviance explained = 66.8%')
-gamtabs(mod_base_t,caption='GAM output for trimmed model predicting mature mortality. Deviance explained = 62.9%')
+#==prep GAM tables and diagnostics for supplementary materials
+gamtabs(mod_base,caption=paste("GAM output for full model predicting mature mortality. Deviance explained = ",round(100*summary(mod_base)$dev,2),"%"))
+gamtabs(mod_base_t,caption=paste("GAM output for trimmed model predicting mature mortality. Deviance explained = ",round(100*summary(mod_base_t)$dev,2),"%"))
 
 png("plots/gam_smooths_mat.png",height=5,width=8,res=350,units='in') 
 draw(mod_base,scales='fixed')&theme_bw()
@@ -847,25 +918,26 @@ my_data <- data.frame(input_dat,
                             high = (preds$fit + 1.96 * preds$se.fit))
 dev_expl<-summary(mod_base)$dev
 
-#==============================
 #==cross validation============
-#==============================
 cv_plot_mat_m<-list()
 use_dat<-input_dat
 dev_expl_cv<-rep(0,nrow(use_dat))
 predicted_cv<-matrix(nrow=nrow(use_dat),ncol=nrow(use_dat)-1)
 cv_yrs<-matrix(nrow=nrow(use_dat),ncol=nrow(use_dat)-1)
 smooth_table<-list()
+p_table<-list()
 for(x in 1:nrow(use_dat))
 {
   cv_dat<-use_dat[-c(x),]
-  mod_cv<-gam(data=cv_dat,dep_var~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3) )
-
+  #mod_cv<-gam(data=cv_dat,dep_var~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3) )
+  mod_cv<-gam(data=cv_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3)) 
   dev_expl_cv[x]<-summary(mod_cv)$dev.expl
   cv_plot_mat_m[[x]]<-plot(mod_cv,page=1)
   predicted_cv[x,]<-predict(mod_cv)
   cv_yrs[x,]<-cv_dat$year
   smooth_table[[x]]<-summary(mod_cv)$s.table
+  p_table[[x]]<-summary(mod_cv)$p.table
+  print(x)
 }
 
 #==massage data for ggplots
@@ -876,21 +948,22 @@ mat_cv_M_outs<-data.frame(pred=c(predicted_cv),
 
 mat_cv_M_dev<-data.frame(deviance_explained=dev_expl_cv,
                          fits="Mature mortality")
-in_names<-c("Temperature","Disease","Mature population")
-in_names<-c("Temperature","Disease","Discard","Bycatch","Mature population")
-smooth_cv_outs<-matrix(ncol=length(smooth_table),nrow=nrow(smooth_table[[1]]))
 
+in_names<-c("Temperature","Disease","Discard","Bycatch","Mature population","Predation")
+smooth_cv_outs<-matrix(ncol=length(smooth_table),nrow=nrow(smooth_table[[1]]))
 for(x in 1:length(smooth_table))
-  smooth_cv_outs[,x]<-smooth_table[[x]][,4]
+  try(smooth_cv_outs[,x]<-smooth_table[[x]][,4],silent=TRUE)
 rownames(smooth_cv_outs)<-in_names
 colnames(smooth_cv_outs)<-seq(1,ncol(smooth_cv_outs))
 mat_cv_M_pval<-melt(smooth_cv_outs)
 colnames(mat_cv_M_pval)<-c("Process","Rep","Value")
 mat_cv_M_pval$fits<-"Mature mortality"
 
-#======================================================
+plot_pval_mat<-ggplot(data=mat_cv_M_pval)+
+  geom_histogram(aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
+  theme_bw()
+
 #==test impact of uncertainty in estimates============
-#=====================================================
 unc_plot_mat_m<-list()
 use_dat<-input_dat
 dev_expl_unc<-rep(0,nrow(trans_sim_mat))
@@ -902,8 +975,8 @@ for(x in 1:nrow(trans_sim_mat))
 {
   unc_dat<-use_dat
   use_dat$dep_var<-trans_sim_mat[x,  which(!is.na(match(colnames(trans_sim_mat),use_dat$year)))]
-  mod_unc<-gam(data=use_dat,dep_var~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3) )
-
+  mod_unc<-gam(data=use_dat,dep_var~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3) )
+  
   dev_expl_unc[x]<-summary(mod_unc)$dev.expl
   predicted_unc[x,]<-predict(mod_unc)
   unc_yrs[x,]<-use_dat$year
@@ -917,9 +990,9 @@ mat_unc<-melt(predicted_unc)
 mat_unc$fits<-"Mature mortality"
 
 mat_unc_M_dev<-data.frame(deviance_explained=dev_expl_unc,
-                         fits="Mature mortality")
+                          fits="Mature mortality")
 
-in_names<-c("Temperature","Disease","Discard","Bycatch","Mature population")
+in_names<-c("Temperature","Disease","Discard","Bycatch","Mature population","Predation")
 smooth_unc_outs<-matrix(ncol=length(smooth_table_unc),nrow=nrow(smooth_table_unc[[1]]))
 
 for(x in 1:length(smooth_table_unc))
@@ -930,6 +1003,11 @@ colnames(smooth_unc_outs)<-seq(1,ncol(smooth_unc_outs))
 mat_unc_M_pval<-melt(smooth_unc_outs)
 colnames(mat_unc_M_pval)<-c("Process","Rep","Value")
 mat_unc_M_pval$fits<-"Mature mortality"
+
+plot_pval_mat<-ggplot(data=mat_unc_M_pval)+
+  geom_histogram(aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
+  theme_bw()
+
 
 #==prediction==================
 
@@ -1011,32 +1089,58 @@ dev.off()
 #=======================================
 #==immature mortality
 #=======================================
+#===GAM=====
 input_dat<-merge(est_vars[,c(1,3)],covars_imm)[,-7]
+#write.csv(input_dat,"imm_mort.csv")
 input_dat<-input_dat[complete.cases(input_dat),]
 colnames(input_dat)[2]<-"dep_var"
+input_dat<-input_dat[-c(1),]
+#ggpairs(data=input_dat)
 
 mod_base_t<-gam(data=input_dat,dep_var~s(temperature,k=3)+s(mat_pop,k=3))
-mod_base<-gam(data=input_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
 mod_base<-gam(data=input_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
-mod_base_int<-gam(data=input_dat,dep_var~s(mat_pop,temperature,k=8))
 
 summary(mod_base)
 plot(mod_base,page=1)
 
+summary(mod_base_t)
+plot(mod_base_t,page=1)
+
+mod_base_temp<-gam(data=input_dat,(dep_var)~s(temperature,k=4)) 
+summary(mod_base_temp)
+plot(mod_base_temp,page=1)
+
+
+#==check a two dimensional smooth
+mod_base_int<-gam(data=input_dat,dep_var~s(mat_pop,temperature,k=8))
+summary(mod_base_int)
+plot(mod_base_int,page=1,too.far=0,cex=3)
+
+#==try shape constrained additive models
+b <- scam(data=input_dat,dep_var~disease+s(temperature,k=3)+s(mat_pop,bs='mpi')+imm_pop+predation+bycatch +cannibalism)
+summary(b)
+png("plots/scam_output.png",height=5,width=8,res=350,units='in') 
+plot(b,pages=1)
+dev.off()
+
+b_t <- scam(data=input_dat,dep_var~s(temperature,k=3)+s(mat_pop,bs='mpi'))
+summary(b_t)
+plot(b_t,pages=1)
+
 dev_expl<-summary(mod_base)$dev
 
 
-# plot(input_dat$dep_var,type='l',ylim=c(-4,4))
-# lines(input_dat$predation,col=2)
-# plot(input_dat$dep_var,input_dat$predation)
-#==try betar
+#==check a beta distribution
 beta_dat<-input_dat
 beta_dat$dep_var<-1-exp(-beta_dat$dep_var)
-bm <- gam((dep_var)~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3),family=betar(link="logit"),data=beta_dat)
+bm <- gam((dep_var)~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3)+s(imm_pop,k=3),family=betar(link="logit"),data=beta_dat)
 bm_trim <- gam((dep_var)~s(temperature,k=4)+s(mat_pop,k=3),family=betar(link="logit"),data=beta_dat)
+summary(bm)
+plot(bm,pages=1)
 
-gamtabs(mod_base,caption='GAM output for full model predicting immature mortality. Deviance explained = 72.2%')
-gamtabs(mod_base_t,caption='GAM output for trimmed model predicting immature mortality. Deviance explained = 59.1%')
+gamtabs(mod_base,caption=paste("GAM output for full model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base)$dev,2),"%"))
+gamtabs(mod_base_t,caption=paste("GAM output for trimmed model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base_t)$dev,2),"%"))
+gamtabs(b,caption=paste("GAM output for trimmed model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base_t)$dev,2),"%"))
 
 png("plots/gam_smooths_imm.png",height=5,width=8,res=350,units='in') 
 draw(mod_base,scales='fixed')&theme_bw()
@@ -1070,6 +1174,7 @@ for(x in 1:nrow(use_dat))
   cv_dat<-use_dat[-c(x),]
   #mod_cv<-gam(data=cv_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
   mod_cv<-gam(data=cv_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
+ # mod_cv <- scam(data=cv_dat,dep_var~disease+s(temperature,k=3)+s(mat_pop,bs='mpi')+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
   
   dev_expl_cv[x]<-summary(mod_cv)$dev.expl
   cv_plot_imm_m[[x]]<-plot(mod_cv,page=1)
@@ -1087,7 +1192,6 @@ imm_cv_M_outs<-data.frame(pred=c(predicted_cv),
 imm_cv_M_dev<-data.frame(deviance_explained=dev_expl_cv,
                          fits="Immature mortality")
 
-in_names<-c("Disease","Temperature","Mature population","Predation","Bycatch","Cannibalism")
 in_names<-c("Disease","Temperature","Mature population","Immature population","Predation","Bycatch","Cannibalism")
 
 smooth_cv_outs<-matrix(ncol=length(smooth_table),nrow=nrow(smooth_table[[1]]))
@@ -1099,20 +1203,23 @@ imm_cv_M_pval<-melt(smooth_cv_outs)
 colnames(imm_cv_M_pval)<-c("Process","Rep","Value")
 imm_cv_M_pval$fits<-"Immature mortality"
 
-#======================================================
-#==test impact of uncertainty in estimates============
-#=====================================================
+ggplot(data=imm_cv_M_pval)+
+  geom_histogram(aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
+  theme_bw()
+
+
+#==test impact of uncertainty in mortality estimates============
 unc_plot_imm_m<-list()
 use_dat<-input_dat
-dev_expl_unc<-rep(0,nrow(trans_sim_mat))
-predicted_unc<-matrix(nrow=nrow(trans_sim_mat),ncol=nrow(input_dat))
-unc_yrs<-matrix(nrow=nrow(trans_sim_mat),ncol=nrow(input_dat))
+dev_expl_unc<-rep(0,nrow(trans_sim_imm))
+predicted_unc<-matrix(nrow=nrow(trans_sim_imm),ncol=nrow(input_dat))
+unc_yrs<-matrix(nrow=nrow(trans_sim_imm),ncol=nrow(input_dat))
 smooth_table_unc<-list()
 
-for(x in 1:nrow(trans_sim_mat))
+for(x in 1:nrow(trans_sim_imm))
 {
   unc_dat<-use_dat
-  use_dat$dep_var<-trans_sim_imm[x,  which(!is.na(match(colnames(trans_sim_mat),use_dat$year)))]
+  use_dat$dep_var<-trans_sim_imm[x,  which(!is.na(match(colnames(trans_sim_imm),use_dat$year)))]
   mod_unc<-gam(data=use_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
   
   dev_expl_unc[x]<-summary(mod_unc)$dev.expl
@@ -1142,6 +1249,30 @@ imm_unc_M_pval<-melt(smooth_unc_outs)
 colnames(imm_unc_M_pval)<-c("Process","Rep","Value")
 imm_unc_M_pval$fits<-"Immature mortality"
 
+ggplot(data=imm_unc_M_pval)+
+  geom_histogram(aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
+  theme_bw()
+
+
+unc_plot<-rbind(imm_unc_M_pval,mat_unc_M_pval)
+unc_devs<-rbind(imm_unc_M_dev,mat_unc_M_dev)
+
+unc_p_pval<-ggplot(data=unc_plot)+
+  geom_histogram(aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
+  theme_bw()+
+  facet_wrap(~fits)+
+  theme(legend.position=c(0.8,0.7))+
+  xlab("P-value")
+
+unc_p_dev<-ggplot(data=unc_devs)+
+  geom_histogram(aes(x=deviance_explained),bins=50,alpha=.8)+
+  theme_bw()+
+  facet_wrap(~fits,ncol=1)+
+  xlim(0,1)+xlab("Deviance explained")
+
+png("plots/unc_pvals.png",height=6,width=8,res=350,units='in') 
+(unc_p_pval |  unc_p_dev) + plot_layout(widths=c(3,1))
+dev.off()
 
 #==prediction==================
 
@@ -1150,6 +1281,8 @@ for(y in 0:2)
 {
   train_dat<-input_dat[-seq(nrow(input_dat)-y,nrow(input_dat)),]
   mod_pred<-gam(data=train_dat,dep_var~s(temperature,k=3)+s(mat_pop,k=3))
+  #mod_pred <- scam(data=train_dat,dep_var~s(temperature,k=3)+s(mat_pop,bs='mpi')+s(imm_pop,k=3))
+  
   preds<-predict(mod_pred, se.fit = TRUE,newdata=input_dat)
   my_data_imm_m_pred <- rbind(my_data_imm_m_pred,data.frame(input_dat,
                                                             mu   = (preds$fit),
@@ -1175,7 +1308,7 @@ imm_fits_plot<-ggplot( )+
         panel.background=element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
-        legend.position=c(.3,.85),
+        legend.position=c(.5,.85),
         axis.text.x=element_blank(),
         axis.title.x=element_blank(),
         axis.ticks.x=element_blank(),
@@ -1195,7 +1328,7 @@ imm_fits_plot_alt<-ggplot( )+
         panel.background=element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
-        legend.position=c(.3,.85),
+        legend.position=c(.5,.85),
         axis.text.x=element_blank(),
         axis.title.x=element_blank(),
         axis.ticks.x=element_blank(),
@@ -1343,7 +1476,7 @@ plot_pval_imm<-ggplot(data=temp_cv)+
          legend.key.size = unit(.2, 'cm'))+
   geom_vline(xintercept=0.06,lty=2)+
   xlab("p-value")+
-  scale_y_continuous(position="right",limits=c(0,55))
+  scale_y_continuous(position="right",limits=c(0,60))
 
 temp_cv<-big_cv_pval
 temp_cv$Value[temp_cv$fits=="Immature mortality"]<-1
@@ -1363,7 +1496,7 @@ plot_pval_mat<-ggplot(data=temp_cv)+
          legend.key=element_blank())+
   geom_vline(xintercept=0.06,lty=2)+
   xlab("p-value")+
-  scale_y_continuous(position="right",limits=c(0,35))
+  scale_y_continuous(position="right",limits=c(0,50))
 
 alf<-imm_abnd+mat_abnd+imm_size+mat_size+
   imm_fits_plot+mat_fits_plot+plot_dev_imm+plot_dev_mat +
@@ -1379,55 +1512,4 @@ dev.off()
 
 png('plots/predict_big.png',height=8,width=8,res=350,units='in')
 imm_fits_plot_alt / mat_fits_plot_alt
-dev.off()
-
-
-
-#===================================
-# Uncertainty in estimates sensitivity
-#=====================================
-
-big_dev_ps<-rbind(mat_unc_M_dev,imm_unc_M_dev)
-plot_unc_dev<-ggplot(data=big_dev_ps)+
-  geom_histogram(aes(x=deviance_explained*100),bins=20,fill='blue',alpha=0.5)+
-  theme_bw()+
-  facet_wrap(~fits,ncol=1)+
-  scale_x_continuous(breaks=c(0,50,100),limits=c(0,100))+
-  xlab("% deviance explained")+
-  scale_y_continuous(position = "right")
-
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank())+
-  theme( strip.background = element_blank(),
-         strip.text.x = element_blank(),
-         panel.border = element_blank(),
-         panel.background = element_blank(),
-         axis.title.y=element_blank(),
-         axis.text.y=element_blank(),
-         axis.ticks.y=element_blank(),
-         axis.title.x=element_blank(),
-         axis.text.x=element_blank(),
-         axis.ticks.x=element_blank()
-  )+
- 
-
-
-
-
-big_unc_ps<-rbind(mat_unc_M_pval,imm_unc_M_pval)
-df2<-data.frame(vline=c(0.055,0.05),fits=c("Mature mortality","Immature mortality"))
-plot_pval_unc<-ggplot()+
-  geom_histogram(data=big_unc_ps,aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
-  theme_bw()+
-  xlim(-0.1,1)+
-  geom_vline(data=df2,mapping=aes(xintercept=vline),lty=2)+
-  facet_wrap(~fits,ncol=1)+
-  theme( legend.position=c(.85,.255),
-         legend.key=element_blank(),
-         panel.grid.minor = element_blank(),
-         panel.grid.major = element_blank())+
-  xlab("p-value")
-
-png("plots/unc_pval_dev.png",height=7,width=10,res=400,units='in')
-(plot_pval_unc | plot_unc_dev) + plot_layout(widths = c(2, 1))
 dev.off()
