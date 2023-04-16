@@ -1,14 +1,6 @@
 #===================================================================
 #==ANALYSIS OF THE COLLAPSE OF SNOW CRAB IN THE EASTERN BERING SEA==
 #===================================================================
-#==Gameplan===============================
-#==READ IN POP DY MODEL OUTPUT
-#==CHECK POP DY MODEL FITS
-#==READ IN COVARIATES
-#==MAKE COVARIATE DATA FRAME
-#==BUILD GAM TO EXPLAIN ESTIMATED M AND Q
-#==DO ROBUSTNESS CHECKS OF GAM
-#=========================================
 library(dplyr)
 library(reshape2)
 library(tidyr)
@@ -21,15 +13,14 @@ library(maps)
 library("rnaturalearth")
 library(interp)
 library(RColorBrewer)
-library(reshape2) # for melt
+library(reshape2) 
 library(mgcv)  
 library(PBSmapping)
-library(mapdata)    #some additional hires data
-library(maptools)   #useful tools such as reading shapefiles
+library(mapdata)    
+library(maptools)   
 library(mapproj)
 library(metR)
 library(ggplot2)
-#install.packages("rnaturalearthdata")
 library(reshape)
 library(dplyr)
 library(ggplot2)
@@ -56,8 +47,8 @@ annotation_custom2 <-   function (grob, xmin = -Inf, xmax = Inf, ymin = -Inf,yma
 #==============================
 # READ IN POP DY MODEL OUTPUT
 #==============================
-#==========
-# Input
+#================
+# PopDy Input
 #===============
 input<-"C:/Users/cody.szuwalski/Work/snow_down_pub/models/model_base/snow_down.DAT"
 styr <- scan(input,skip=2,n=1,quiet=T)
@@ -165,26 +156,6 @@ imm_sd<-ret$std[which(ret$names=="imm_n_sd")]
 mat_sd<-ret$std[which(ret$names=="mat_n_sd")]
 
 
-#==find r square
-div_n<-1000000000
-in_ind<-1
-plot_mmb<-outs[[in_ind]]$imm_n_obs/div_n
-plot_mmb[plot_mmb==0]<-NA
-
-preds<-outs[[in_ind]]$imm_numbers_pred/div_n
-mod<-gam(plot_mmb~(preds))
-mod<-lm(plot_mmb~(preds))
-summary(mod)
-
-plot_mmb<-outs[[in_ind]]$mat_n_obs/div_n
-plot_mmb[plot_mmb==0]<-NA
-
-preds<-outs[[in_ind]]$mat_numbers_pred/div_n
-mod<-gam(plot_mmb~(preds))
-summary(mod)
-
-
-
 #==immature size comps
 rownames(obs_imm_comp)<-years
 colnames(obs_imm_comp)<-sizes
@@ -234,6 +205,7 @@ mat_size<-ggplot(data=df2,aes(x = factor(Size), y =pred)) +
 
 #==fits index
 # imm
+div_n<-1000000000
 df_1<-data.frame(pred=outs[[take_ind]]$imm_numbers_pred/div_n,
                  obs=outs[[1]]$imm_n_obs/div_n,
                  year=years,
@@ -250,7 +222,6 @@ imm_abnd<-ggplot(data=df_1)+
   geom_point(aes(x=year,y=obs))+
   geom_line(aes(x=year,y=pred),lwd=1,col='blue',alpha=.8)+
   geom_ribbon(aes(x=year,ymin=est_ci_dn,ymax=est_ci_up),fill='blue',alpha=0.2)+
-  #geom_line(aes(x=year,y=recruits),col='purple',lwd=.7,lty=1,alpha=0.8)+
   scale_y_continuous(breaks=c(0,2.5,5.0),limits=c(-0.1,6))+
   ylab("IMMATURE
 Abundance (billions)")+
@@ -479,10 +450,6 @@ for(x in 1:length(years))
 #========================================
 # Disease
 #========================================
-#  median disease prevalence
-
-#========================================
-library(dplyr)
 in_break<-seq(0, max(survDAT$WIDTH,na.rm=T), 5)
 mid_pts<-rep(0,length(in_break)-1)
 for(x in 1:length(mid_pts))
@@ -578,25 +545,7 @@ colnames(cannibal_ind_imm)[1]<-"year"
 
 
 #============================
-# fishery data (numbers at size--used in previous versions)
-#============================
-fish_dat<-readList("data/fisheries_data.txt")
-all_bycatch<-apply(fish_dat$trawl_num_size_obs,1,sum)
-
-ret_catch<-fish_dat$retained_num_size_obs
-colnames(ret_catch)<-seq(27.5,132.5,5)
-rownames(ret_catch)<-seq(1982,2020)
-
-disc_cat<-fish_dat$discard_num_size_obs
-colnames(disc_cat)<-seq(27.5,132.5,5)
-rownames(disc_cat)<-seq(1992,2020)
-
-bycatch<-fish_dat$trawl_num_size_obs
-colnames(bycatch)<-seq(27.5,132.5,5)
-rownames(bycatch)<-seq(1991,2020)
-
-#============================
-# fishery data (aggregate--used in previous versions)
+# fishery data 
 #============================
 fish_dat2<-read.csv("data/fisheries_dat.csv")
 
@@ -624,10 +573,10 @@ covars_mat<-data.frame(year=seq(1989,2020),
                    mat_pop = NA)
 
 
-#===========================================================================
-# Total population numbers (instead of observed)
-# important for calculating impact of given catch/predation on population
-#=========================================================================
+#==================================================
+# Total population numbers 
+#===================================================
+
 use_mat_sel<-outs[[take_ind]]$pred_mat_pop_num
 use_imm_sel<-outs[[take_ind]]$pred_imm_pop_num
 tot_imm_pop<-apply(use_imm_sel,1,sum)
@@ -644,11 +593,6 @@ covars_mat$disease[which(!is.na(match(covars_mat$year,use_disease_mat$AKFIN_SURV
 covars_mat$imm_pop[which(!is.na(match(covars_mat$year,years)))]<-scale(tot_imm_pop[which(!is.na(match(years,covars_mat$year)))])
 covars_mat$mat_pop[which(!is.na(match(covars_mat$year,years)))]<-scale(tot_mat_pop[which(!is.na(match(years,covars_mat$year)))])
 
-#========================
-#==predation, bycatch, and discards need to be divide observed covar by the amount of 
-#==est crab in water to make it comparable to a mortality rate
-
-#==bycatch
 common_yrs<-intersect(fish_dat2$Year,rownames(pred_n_size_imm))
 use_bycatch<-fish_dat2$bycatch[which(!is.na(match(fish_dat2$Year,common_yrs)))]
 bycatch_mort<-scale(use_bycatch/(tot_mat_pop[-length(tot_mat_pop)]+tot_imm_pop[-length(tot_mat_pop)]))
@@ -656,7 +600,6 @@ bycatch_mort<-scale(use_bycatch/(tot_mat_pop[-length(tot_mat_pop)]+tot_imm_pop[-
 covars_imm$bycatch<-bycatch_mort
 covars_mat$bycatch<-bycatch_mort
 
-#==discard
 common_yrs<-intersect(fish_dat2$Year,rownames(pred_n_size_imm))
 use_discard<-fish_dat2$discard[which(!is.na(match(fish_dat2$Year,common_yrs)))]
 discard_mort<-scale(use_discard/(tot_mat_pop[-length(tot_mat_pop)]))
@@ -664,8 +607,9 @@ discard_mort<-scale(use_discard/(tot_mat_pop[-length(tot_mat_pop)]))
 covars_imm$discard<-NA
 covars_mat$discard<-discard_mort
 
-
-#==predation
+#=================================================
+#==cod predation
+#=============================================
 alt_pred<-read.csv("data/cod_consump.csv")
 wt_size<-read.csv("data/wt_at_size.csv")
 use_wts<-filter(wt_size,Size%in%sizes)
@@ -688,7 +632,7 @@ covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale
 
 #==show the comparison of different potential predation indices
 all_cod<-alt_pred
-colnames(all_cod)[4:5]<-c("Stomach contents","Abundance >50 cm")
+colnames(all_cod)[2:3]<-c("Stomach contents","Abundance >50 cm")
 tmp_pred<-all_cod$"Stomach contents"[match(common_yrs,all_cod$Year)]
 tmp1<-data.frame(value=scale(tmp_pred/tot_crab_all),
            Year=seq(1989,2019),
@@ -769,10 +713,9 @@ plot_mat<-melt(covars_mat,id=c("year"))
  print(var_on_var_all2)
  dev.off()
  
- #========================================================
- # simulate mortality trajectories using covariance matrix
- # to be used in 
- #========================================================
+#========================================================
+# simulate mortality trajectories using covariance matrix
+#========================================================
  
  getADMBHessian <- function(direc){
    ## Thank you, Cole Monnahan
@@ -844,7 +787,6 @@ plot_mat<-melt(covars_mat,id=c("year"))
 #=============================================
 # build models for mortality 
 #=============================================
-##############################################
 est_vars<-data.frame(year=years,
                      est_mat_m=(outs[[take_ind]]$'mature natural mortality')[,1],
                      est_imm_m=(outs[[take_ind]]$'natural mortality')[,1])
@@ -854,12 +796,11 @@ est_vars<-data.frame(year=years,
 #==================
 #==GAM==============
  input_dat<-merge(est_vars[,c(1,2)],covars_mat)[,-c(5)]
- #write.csv(input_dat,"mat_mort.csv")
  input_dat<-input_dat[complete.cases(input_dat),]
  colnames(input_dat)[2]<-"dep_var"
  input_dat<-input_dat[-c(1),] #==chop first year of data because of initialization conditions
- #ggpairs(data=input_dat)
- 
+
+ #==check a few models...mod_base is presented in text
  mod_base<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3)) 
  mod_base1<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)) 
  summary(mod_base)
@@ -1091,12 +1032,11 @@ dev.off()
 #=======================================
 #===GAM=====
 input_dat<-merge(est_vars[,c(1,3)],covars_imm)[,-7]
-#write.csv(input_dat,"imm_mort.csv")
 input_dat<-input_dat[complete.cases(input_dat),]
 colnames(input_dat)[2]<-"dep_var"
 input_dat<-input_dat[-c(1),]
-#ggpairs(data=input_dat)
 
+#==check a few models, mod_base is presented in text
 mod_base_t<-gam(data=input_dat,dep_var~s(temperature,k=3)+s(mat_pop,k=3))
 mod_base<-gam(data=input_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
 
@@ -1172,10 +1112,8 @@ smooth_table<-list()
 for(x in 1:nrow(use_dat))
 {
   cv_dat<-use_dat[-c(x),]
-  #mod_cv<-gam(data=cv_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
   mod_cv<-gam(data=cv_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop,k=3)+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
- # mod_cv <- scam(data=cv_dat,dep_var~disease+s(temperature,k=3)+s(mat_pop,bs='mpi')+s(imm_pop,k=3)+s(predation,k=3)+s(bycatch,k=3) +s(cannibalism,k=3))
-  
+
   dev_expl_cv[x]<-summary(mod_cv)$dev.expl
   cv_plot_imm_m[[x]]<-plot(mod_cv,page=1)
   predicted_cv[x,]<-predict(mod_cv)
@@ -1281,8 +1219,7 @@ for(y in 0:2)
 {
   train_dat<-input_dat[-seq(nrow(input_dat)-y,nrow(input_dat)),]
   mod_pred<-gam(data=train_dat,dep_var~s(temperature,k=3)+s(mat_pop,k=3))
-  #mod_pred <- scam(data=train_dat,dep_var~s(temperature,k=3)+s(mat_pop,bs='mpi')+s(imm_pop,k=3))
-  
+
   preds<-predict(mod_pred, se.fit = TRUE,newdata=input_dat)
   my_data_imm_m_pred <- rbind(my_data_imm_m_pred,data.frame(input_dat,
                                                             mu   = (preds$fit),
@@ -1365,9 +1302,9 @@ legend('topleft',bty='n',col=c(2,4),lty=c(2,1),legend=c("Randomized 95th percent
 dev.off()
 
 
-######################################
+#=======================================
 # make big crossvalidation figure
-#####################################
+#=======================================
 big_cv_outs<-rbind(mat_cv_M_outs,imm_cv_M_outs)
 big_cv_dev<-rbind(mat_cv_M_dev,imm_cv_M_dev)
 big_cv_pval<-rbind(mat_cv_M_pval,imm_cv_M_pval)
@@ -1502,11 +1439,17 @@ alf<-imm_abnd+mat_abnd+imm_size+mat_size+
   imm_fits_plot+mat_fits_plot+plot_dev_imm+plot_dev_mat +
   plot_pval_imm+plot_pval_mat+plot_layout(byrow=FALSE,ncol=5,nrow=2,widths=c(1,1,1,.3,.7))+
   plot_layout(tag_level = 'new') +
-  plot_annotation(tag_levels = list(c('a','','b','','c','','d','','e','')))+
+  plot_annotation(tag_levels = list(c('A','','B','','C','','D','','E','')))+
   plot_annotation(title="Population Dynamics                                                                      Generalized Additive Models")
 
 
 png('plots/figure_2.png',height=5,width=10,res=350,units='in')
+print(alf)
+dev.off()
+jpeg('plots/figure_2.jpeg',height=5,width=10,res=350,units='in')
+print(alf)
+dev.off()
+pdf('plots/figure_2.pdf',height=5,width=10)
 print(alf)
 dev.off()
 

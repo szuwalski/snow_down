@@ -49,11 +49,7 @@ for(w in 1:length(AllStation))
   AllStnLoc[w,1]<-temp$MID_LATITUDE[1]
   AllStnLoc[w,2]<-temp$MID_LONGITUDE[1]
 }
-sum(nchar(AllStation)==4)
-# plot(AllStnLoc[,1]~AllStnLoc[,2],cex=.3)
-# text(AllStation,x=AllStnLoc[,2],y=AllStnLoc[,1])
-# nbs_bound<-data.frame(lat=c(62.1,62.1,61.1,61.1,60.5,60.5),
-#                       lon=c(-175,-172.5,-172.5,-171,-171,-165))
+
 #================================
 #==find survey densities (total)
 #================================
@@ -160,6 +156,7 @@ for(y in 1:length(SurvYR))
   }
 }
 plot(apply(num_M_101,1,sum,na.rm=T)[-1]~SurvYR[-1],type='l',ylab='total number of observed crab >101mm')
+
 #================================
 # Northern Bering See
 #================================
@@ -169,10 +166,6 @@ nbs_survDAT$AKFIN_SURVEY_YEAR<-nbs_drvYear
 nbs_SurvYR<-unique(nbs_drvYear)
 nbs_AllStation<-unique(nbs_survDAT$GIS_STATION)
 
-# ebs_2019<-filter(survDAT,AKFIN_SURVEY_YEAR==2019)
-# nbs_2019<-filter(nbs_survDAT,AKFIN_SURVEY_YEAR==2019)
-# write.csv(ebs_2019,"ebs_2019.csv")
-# write.csv(nbs_2019,"nbs_2019.csv")
 #==plot GIS stations
 nbs_AllStnLoc<-matrix(ncol=2,nrow=length(nbs_AllStation))
 for(w in 1:length(nbs_AllStation))
@@ -280,7 +273,7 @@ for(y in 1:length(nbs_SurvYR))
 }
 
 #==================================
-# mappity map map
+# map
 #===============================
 ebs_dat<-data.frame(log_abund_101=log(c(t(DensityM101[-1,]))),
                     recruits=c(t(DensityM_78_100[-nrow(DensityM_78_100),])),
@@ -342,10 +335,10 @@ lon_2<-max(in_dat$lon,na.rm=T)*.99
 lat_1<-min(in_dat$lat,na.rm=T)
 lat_2<-max(in_dat$lat,na.rm=T)
 in_gam_dat<-in_dat
-in_gam_dat_2<-in_gam_dat[,c(1,5,6,7,9,11,12,13,14)]
 in_gam_dat_2<-in_gam_dat[,c(5,6,7,14)]
 in_fin<-melt(in_gam_dat_2,id=c('lat','lon','year'))
 in_fin<-in_fin[complete.cases(in_fin),]
+
 #==plot maps smaller crab
 nbs_bound<-data.frame(lat=c(62.1,62.1,61.1,61.1,60.5,60.5),
                       lon=c(-177,-172.5,-172.5,-171,-171,-165))
@@ -353,26 +346,17 @@ nbs_bound<-data.frame(lat=c(62.1,62.1,61.1,61.1,60.5,60.5),
 
 op_map<-ggplot() + 
   geom_tile(data=in_fin, aes(x = lon, y = lat, fill = value),width=.5,height=.25) +
-  # geom_point(data = gam_dat, 
-  #            aes(x = lon, y = lat,fill=log_abund_101), 
-  #            shape = 16,size=.45) +
   scale_fill_distiller(palette="Spectral", na.value="grey") +
   facet_wrap(~year,ncol=1) +
   geom_sf(data=world) +
   coord_sf(xlim = c(lon_1,lon_2), ylim = c(lat_1,lat_2), expand = FALSE) +
   theme_bw()+
   theme(axis.text.x = element_text(size = 10))+
-  # strip.text.x = element_text(margin= margin(1,0,1,0)),
-  # panel.grid.major = element_blank(), 
-  # panel.grid.minor = element_blank(),
-  # panel.border = element_blank(),
-  # strip.background = element_rect(color="white",fill="white"))+
   geom_line(data=nbs_bound,aes(x=lon,y=lat),col='red')+
   theme(legend.position=c(.88,.82),
         legend.background = element_rect(fill='transparent',color=NA),
         legend.box.background = element_rect(fill='transparent',color=NA))+
   labs(fill="ln(crab/nm^2)")
-
 
 #########################################
 # map for figure 3; shows density in 2018 vs. average
@@ -403,18 +387,12 @@ unique(nchar(ebs_dat$station))
 
 dens_map<-ggplot() + 
   geom_tile(data=in_fin3, aes(x = lon, y = lat),width=.5,height=.25,fill='light grey') +
-  #geom_tile(data=in_fin2, aes(x = lon, y = lat),width=.5,height=.25,fill='grey') +
   geom_tile(data=in_fin, aes(x = lon, y = lat, fill = value),width=.5,height=.25) +
   scale_fill_distiller(palette="Spectral", na.value="grey") +
   geom_sf(data=world) +
   coord_sf(xlim = c(lon_1,lon_2), ylim = c(lat_1,lat_2), expand = FALSE) +
   theme_bw()+
   theme(axis.text.x = element_text(size = 10))+
-  # strip.text.x = element_text(margin= margin(1,0,1,0)),
-  # panel.grid.major = element_blank(), 
-  # panel.grid.minor = element_blank(),
-  # panel.border = element_blank(),
-  # strip.background = element_rect(color="white",fill="white"))+
   geom_line(data=nbs_bound,aes(x=lon,y=lat),col='red')+
   theme(legend.position=c(.88,.62),
         legend.background = element_rect(fill='transparent',color=NA),
@@ -426,6 +404,7 @@ tmp<-stations_plot/dens_map + plot_layout(heights=c(.3,1)) + plot_annotation(tag
 png('plots/figure_1_addon.png',height=10,width=7,res=350,units='in')
 print(tmp)
 dev.off()
+
 ###########################
 # just survey stations
 #########################
@@ -443,7 +422,7 @@ nbs_bound<-data.frame(lat=c(62.1,62.1,61.1,61.1,60.5,60.5),
                       lon=c(-177,-172.5,-172.5,-171,-171,-165))
 
 
-######################################################
+####################################
 # other figures
 ####################################
 annotation_custom2 <-   function (grob, xmin = -Inf, xmax = Inf, ymin = -Inf,ymax = Inf, data){ layer(data = data, 
@@ -535,7 +514,6 @@ size_yr <- size_yr + geom_density_ridges(aes(x=SIZE_CLASS_MM, y=SURVEY_YEAR, hei
   theme(legend.position = "none") +
   labs(x="Carapace width (mm)") +
   xlim(25,125)+
-  #scale_fill_manual(values=c("blue4"))+
   scale_y_continuous(name='Year',position='right')+
   geom_vline(aes(xintercept=101),lty=2)
 
@@ -554,7 +532,6 @@ temp_tot<-survDAT %>%
 temp_tot$mid_pt<-mid_pts[temp_tot$group]
 
 #==temperature occupied by size class
-#==the trends are a lot different by size...
 in_dat<-filter(temp_tot,mid_pt==42.5 | mid_pt==102.5,SEX<2)
 in_dat$mid_pt[in_dat$mid_pt==42.5]<-"42.5 mm"
 in_dat$mid_pt[in_dat$mid_pt==102.5]<-"102.5 mm"
@@ -583,12 +560,19 @@ temp_occ<-ggplot(in_dat)+
   patchwork[[1]] = patchwork[[1]] + theme(axis.text.x = element_blank(),
                                           axis.ticks.x = element_blank(),
                                           axis.title.x = element_blank() )
-  #tmp2<-(patchwork/size_yr) + plot_layout(heights=c(.3,.3,1))
   tmp2<-(patchwork/plot_spacer()/size_yr) + plot_layout(heights=c(.3,-.11,.3,-.06,1))
-  tmp2<-tmp2+plot_annotation(tag_levels='a')
+  tmp2<-tmp2+plot_annotation(tag_levels='A')
   
   tmp3<-op_map + tmp2+plot_layout(widths=c(1,.5))
   
   png('plots/figure_1.png',height=10,width=8,res=350,units='in')
-  tmp3+plot_annotation(tag_levels='a')
+  tmp3+plot_annotation(tag_levels='A')
+  dev.off()
+  
+  jpeg('plots/figure_1.jpeg',height=10,width=8,res=350,units='in')
+  tmp3+plot_annotation(tag_levels='A')
+  dev.off() 
+  
+  pdf('plots/figure_1.pdf',height=10,width=8)
+  tmp3+plot_annotation(tag_levels='A')
   dev.off()

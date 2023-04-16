@@ -12,6 +12,9 @@ output:
 header-includes: 
   - \usepackage[left]{lineno}
   - \linenumbers
+  - \usepackage{float} \floatplacement{figure}{H} 
+  - \newcommand{\beginsupplement}{\setcounter{table}{0} \renewcommand{\thetable}{S\arabic{table}} \setcounter{figure}{0} \renewcommand{\thefigure}{S\arabic{figure}}}
+
 #-  \pagenumbering{gobble}
 csl: fish-and-fisheries.csl
 toc: yes
@@ -47,7 +50,7 @@ source.all( path=in_path, grepstring="\\.R",  print.source=TRUE, file_sep="__"  
 
 ```
 
-
+\beginsupplement
 # Supplementary materials
 ## Methods overview
 We used an integrated population model to estimate variation in mortality over time for snow crab in the eastern Bering Sea and generalized additive models (GAMs) to relate the estimated variation in mortality to potential stressors in the environment.  The population dynamics model was fit to abundance and size composition data from the National Marine Fisheries Service (NMFS) summer bottom trawl survey on the eastern Bering Sea shelf to estimate total mortality by maturity state and year for male snow crab. We then developed indices for temperature occupied, disease prevalence, cannibalism, and crab density from the NMFS survey to test as covariates in GAMs. Cod predation indices were developed using stomach content data collected on NMFS surveys in addition to cod size composition and abundances. Indices for fishery related effects were collated from fisheries statistics from the Alaska Department of Fish and Game and also included in the GAMs.  
@@ -283,7 +286,7 @@ Modeling decisions are also necessarily made in the process of fitting GAMs and 
 ### Error structure
 Impacts of assumptions about error structure were explored by assuming beta distributed data in the GAM and transforming the continuous total mortality rates to an exploitation rate ranging from 0 to 1. This transformation still resulted in mature population and temperature being the most important variables related to mortality, however the deviance explained decreased to 60% and 68% for mature and immature mortality, respectively, compared to 72% and 78% for the model presented in the main text. A potential shortcoming of the method presented in the main text is that predicted mortality could be less than zero. This was not the case in any of the model fittings, and would present a problem primarily if the model was extrapolated to data beyond the observed ranges. A potential fix to this issue is to log the response variable, but this resulted in unacceptable patterns in the residuals, so this model was not used.
 
-### Does incorporating the uncertainty in the estimates of mortality change model outcomes?
+### Does incorporating the uncertainty in the estimates of mortality change analysis outcomes?
 The models presented in the main text use the maximum likelihood estimates of mortality from the population dynamics models as response variables in the GAMs. However, each of those estimates of mortality have associated uncertainty estimated in the fitting process. One way of evaluating the impact of incorporating the estimated uncertainty from the population dynamics model into the GAM fitting process can be accomplished in 4 steps:
 
  1. Invert the Hessian matrix produced from fitting the population dynamics model to calculate a covariance matrix describing the relationships between each of the estimates of mortality,
@@ -296,7 +299,7 @@ A similar methodology can be seen in Johnson et al. (2022). Each of these steps 
 ### Shape of estimated relationships
 The model presented in the main text constrains the number of knots available to the GAM to fit the data for each covariate to 3, but the shapes of GAM-estimated smooths are not constrained. This modeling choice was made because it is not immediately clear a priori what the shape of the smooths should be. For example, the relationship between immature population size and immature mortality could conceivably be linear positive (e.g. higher populations result in higher mortality due to intraspecific competition), linear negative (e.g. larger population sizes dilute the impact of external stressors like predation and fishery effects), dome-shaped (somewhat harder to interpret, but perhaps different processes are important at different population sizes), or monotonic in either direction (e.g. population size modulates external stressors to a point, after which other processes are more important).
 
-The model in the main text is unconstrained with respect to the shape of the estimated relationships between mortality and covariates. However, the relationship between immature mortality and mature population size was markedly dome-shaped and a satisfying biological explanation for this shape is not immediately apparent. To explore the impacts of unconstrained estimation of this relationship, we refit the models using shape constrained additive models in the R package 'scam' (based on Pya and Wood, 2015). This allows the user to specify constraints on the shape of relationships between model variables (e.g. monotonically increasing or decreasing). We refit our model for immature mortality with the assumption that the relationship between immature mortality and mature population size can only be monotonically increasing. The rest of the covariates were specified as linear predictors, except temperature, which remained non-linear. Given the importance of temperature in the hypotheses we present, we were particularly interested to understand how the assumptions about the shape of other significant covariates influence the estimated relationship between temperature and mortality.
+The model in the main text is unconstrained with respect to the shape of the estimated relationships between mortality and covariates. However, the relationship between immature mortality and mature population size was markedly dome-shaped and a satisfying biological explanation for this shape is not immediately apparent. To explore the impacts of unconstrained estimation of this relationship, we refit the models using shape constrained additive models in the R package 'scam' (based on Pya and Wood, 2015). This allows the user to specify constraints on the shape of relationships between model variables (e.g. monotonically increasing or decreasing). We refit our model for immature mortality with the assumption that the relationship between immature mortality and mature population size can only be monotonically increasing (similar to the estimated relationship between mature mortality and mature population size). The rest of the covariates were specified as linear predictors, except temperature, which remained a non-linear smooth. Given the importance of temperature in the hypotheses we present, we were particularly interested to understand how the assumptions about the shape of other significant covariates influence the estimated relationship between temperature and mortality.
 
 Temperature and mature population size were still significant covariates within the shape constrained additive model and immature population size became significant (\autoref{tab.gam5}). The estimated relationship between mortality and temperature was still strongly positive, but became more linear with the shape constraints imposed on mature population size (\autoref{scam_output}). The relationship between immature population size and immature mortality was negative (i.e. all other things considered, more immature crab were associated with lower mortality). While the immature population relationship is potentially interesting, the most important outcome of this exercise is that temperature still returned positive relationship with estimated mortality. Using temperature as the only covariate in an unconstrained GAM explained 37% and 38% of the deviance in immature and mature mortality (not shown). All of these points suggest temperature is a key covariate in the estimated mortality dynamics for snow crab in the eastern Bering Sea.
 
@@ -317,7 +320,7 @@ B. smooth terms & edf & Ref.df & F-value & p-value \\
   s(mat\_pop) & 1.7664 & 2.0738 & 3.5320 & 0.0466 \\ 
    \hline
 \end{tabular}
-\caption{GAM output for trimmed model predicting immature mortality. Deviance explained =  59.53 \%} 
+\caption{GAM output for a shape constrained additive model predicting immature mortality. Deviance explained =  57.5 \%} 
 \label{tab.gam5}
 \end{table}
 
@@ -365,7 +368,7 @@ B. smooth terms & edf & Ref.df & F-value & p-value \\
 In general, higher temperatures were associated with higher weight at size (\autoref{wt_size_smooth}). The weight at size curves for 2015 and 2017 were scaled significantly higher than the base year of 2011, whereas the year 2018 was marginally significantly lower (p=0.057). The marginal significance likely resulted from the relatively small sample size of weight at size available in 2018 (N=27), but the effect size was large (the coefficient associated with 2017 was 12.60; the coefficient associated with 2018 was -11.92) which translated to large differences in estimated weight at size between the years reported in the main document. Previous studies looking at the impacts of starvation on the weight at size of snow crab (e.g. Hardy et al., 2000) reported small changes in weight at size (roughly 2.6% of weight lost over 5 months), but larger changes in the weight of the hepatopancreas. However, there are some key differences between these studies and the field observations we report. First, the maximum observed mortality was 20% in the starvation studies; the mortality levels estimated in the Bering Sea exceeded 90% in some years. Second, the starvation experiments were in laboratory environments where no foraging occurred. Seventy crab were confined in containers measuring 122 x 183 x 40 cm in Hardy et al. (2000), which greatly restricted movement and would presumably impact caloric expenditure and the initiation of catabolism of muscle tissue.
 
 ## A word on methods
-Attribution of changes in population processes in ecology is a difficult problem, particularly for wild populations that are difficult to directly observe and impossible to experiment on in situ. There are a large range of methodologies that claim to identify causality in observational data (structural equation modeling, empirical dynamic modeling, etc.). Some of the difficulties in determining causality in ecological time series are related to the generally short time series that are available, non-linear dynamics, and departures of populations or covariates into unexplored parameter space. These issues can present issues for any modeling framework and we have tried to address these the the best of our ability with the models used here. The use of p-values has been (rightfully) criticized in the literature and the explanatory power of our models are likely overstated.  Ultimately, the numerous sensitivities and simulation tests performed here were undertaken to try to understand if a suite of covariates appear to be important under different modeling decisions and considerations of uncertainty, in spite of the potential short-comings of the data available and models selected. Temperature and population density proved to be these covariates.
+Attribution of changes in population processes in ecology is a difficult problem, particularly for wild populations that are difficult to directly observe and impossible to experiment on in situ. There are a large range of methodologies that claim to identify causality in observational data (structural equation modeling, empirical dynamic modeling, etc.). Some of the difficulties in determining causality in ecological time series are related to the generally short time series that are available, non-linear dynamics, and departures of populations or covariates into unexplored parameter space. These issues can present issues for any modeling framework and we have tried to address these the the best of our ability with the models used here. The use of p-values has been (rightfully) criticized in the literature and the explanatory power of our models are likely overstated given these criticisms.  Ultimately, the numerous sensitivities and simulation tests performed here were undertaken to try to understand if a suite of covariates appear to be important under different modeling decisions and considerations of uncertainty, in spite of the potential short-comings of the data available and models selected. Temperature and population density appear to be these covariates.
 
 ## Frequently asked questions
 ### Are you sure the collapse wasn't a result of cod predation?
@@ -374,20 +377,20 @@ The predation index (i.e. the crab consumed by cod divided by the crab available
 Although our predation indices incorporate the best available information about cod diet and abundance, these indices are snapshots taken during the summer survey. It is possible that the consumption of crab was different in other times of the year and, if this were true, knowing how predation changed throughout the year could alter our results.
 
 ### Are you sure the collapse wasn't a result of trawling?
-The bycatch index steadily declined since the beginning of our study, with the relative impact of trawling in 2018 and 2019 below the historical average (\autoref{grid_covar}). It is difficult to reconcile the idea that trawling could have contributed to the collapse with the relatively low mortality rates estimated during the periods when the bycatch index was many times higher in the 1990s. Furthermore, if trawling is a large source of mortality for snow crab, it is difficult to understand how the largest pseudocohort ever observed could have established and survived for ~8 years on the Bering Sea shelf, during which the trawling pressure was relatively consistent. 
+The bycatch index steadily declined since the beginning of our study, with the relative impact of trawling in 2018 and 2019 below the historical average (\autoref{grid_covar}). It is difficult to reconcile the idea that trawling could have contributed to the collapse with the relatively low mortality rates estimated during the periods when the bycatch index was many times higher in the 1990s. Furthermore, if trawling were a large source of mortality for snow crab, it is difficult to understand how the largest pseudocohort ever observed could have established and survived for ~8 years on the Bering Sea shelf, during which the trawling pressure was relatively consistent. 
 
 However, not all of the mortality associated with non-directed fleets is observed. The index used in this analysis is a reliable indicator of the trend in bycatch mortality provided the ratio of observed to non-observed mortality is consistent over time. If this is not the case, that could change the outcome of our analysis, but there is no clear methodology for determining that ratio.
 
 ### What do crab eat? If they starved, did there appear to be large declines in their prey base?
-Snow crab have a wide-ranging diet of bivalves, polychaetes, crustaceans, and gastropods in the northern Bering Sea (Kolts et al., 2013). They appear to be a generalist, consuming whatever they can capture and crush with their claws. Kolts et al. (2013) reported that most prey items were consumed in proportion to their estimated abundances, except polychaetes, which seemed to be preferentially selected. The prey items are relatively poorly sampled in the Bering Sea survey, so time series of prey quantity are unreliable. 
+Snow crab have a wide-ranging diet of bivalves, polychaetes, crustaceans, and gastropods in the northern Bering Sea (Kolts et al., 2013). They appear to be a generalist, consuming whatever they can capture and crush with their claws. Kolts et al. (2013) reported that most prey items were consumed in proportion to their estimated abundances, except polychaetes, which seemed to be preferentially selected. Indices of prey biomass can be calculated from the NMFS trawl, however the survey gear does not sample these species well. With that caveat, the average of three of the clusters of scaled prey biomass by group from the survey were below the long-term mean in 2018 and 2019 (\autoref{benthic_inverts}). While this is suggestive, these time series require further validation before placing any confidence in them and were therefore not used in the main analysis. 
 
-Even if there were abundant forage for snow crab in warm years, the metabolic trade-off between the energy required to obtain, handle, and digest their prey and the energy derived from prey would need to be considered when trying to understand if metabolic demands could be met. This would be a useful area of further research, particularly if reliable time series of benthic forage could be started and maintained.
+Even if these time series were reliable and there appeared to be abundant forage for snow crab in warm years, the metabolic trade-off between the energy required to obtain, handle, and digest their prey and the energy derived from prey would need to be considered when trying to understand if metabolic demands could be met. This would be a useful area of further research, particularly if reliable time series of benthic forage could be identified and maintained.
 
 ### If it was a large mortality event, did you see large numbers of empty carapaces in the survey?
 Hundreds of millions of carapaces are discarded by molting crab each year even when there are no mortality events and these are rarely seen in the survey nets. So, even with a massive mortality event, one might not expect to see the carapaces remaining from the event. Why the carapaces are not seen in the survey nets is not completely clear, but potential hypotheses include relatively fast disintegration on the sea floor or poor selectivity by the survey gear. Discarded carapaces may sit flat on the bottom and be passed over by the net.
 
 ### Were that many crab really in the eastern Bering Sea to begin with? Was the 'collapse' an artifact of some survey error?
-The NMFS summer survey was designed to estimate crab abundances (REFERENCE). Snow crab are widely distributed on the shelf and consequently well sampled by the survey. There are 375 survey locations in the NMFS eastern Bering Sea trawl survey, of which 349 are on a 40 square nautical mile grid. The remaining stations are in high density sampling areas around islands in the Bering Sea implemented to better estimate crab abundances around those islands. On average, snow crab are observed at 233 of the 349 survey stations on the standard grid. In 2018 a large number of stations returned estimated high densities of crab (see Fig. 1 of main text), which means that the large estimates of abundance in 2018 were not driven by one or two large survey tows. Further, the recent survey methodology has been repeatedly verified as a useful tool for estimating crab abundance (see Somerton et al., 2013, for example).
+The NMFS summer survey was originally designed to estimate crab abundances (Zimmermann et al., 2009) and the recent survey methodology has been repeatedly validated as a useful tool for estimating crab abundance (see Somerton et al., 2013, for example). Snow crab are widely distributed on the shelf and consequently well sampled by the survey. There are 375 survey locations in the NMFS eastern Bering Sea trawl survey, of which 349 are on a 400 square nautical mile grid. The remaining stations are in high density sampling areas around islands in the Bering Sea implemented to better estimate crab abundances around those islands. On average, snow crab are observed at 233 of the 349 survey stations on the standard grid. In 2018 a large number of stations returned estimated high densities of crab (see Fig. 1 of main text), which means that the large estimates of abundance in 2018 were not driven by one or two large survey tows. 
 
 \newpage
 
@@ -404,15 +407,8 @@ include_graphics("plots/tanner.png")
 \newpage
 
 
-```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{slope}Map of eastern Bering Sea slope habitat (colors). Reproduced from HERE. "}
 
-include_graphics("plots/ebs_slope.png")
-
-```
-
-\newpage
-
-```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{fish_cpue}Fishery cpue (top; black lines are median, grey box represents 25-75th quantiles, circles are outliers) and number of crab caught in the directed snow crab fishery (bottom). Vertical dashed line represents the introduction of individual transferrable quota management."}
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{fish_cpue}Fishery cpue (top; black lines are median, grey box represents 25-75th quantiles, circles are outliers) and number of crab caught in the directed snow crab fishery (bottom). Vertical dashed line represents the introduction of individual transferrable quota management. CPUEs before and after are difficult to compare as a result of changes in fleet behavior."}
 
 include_graphics("plots/fish_cpue.png")
 
@@ -878,6 +874,15 @@ include_graphics("plots/wt_size_smooth.png")
 
 
 include_graphics("plots/sizes_of_missing_crab.png")
+
+```
+
+\newpage
+
+
+```{r,echo=FALSE,warning=FALSE,message=F,out.width="98%",fig.cap="\\label{benthic_inverts}Hierarchical clusters of scaled benthic prey group biomass in the eastern Bering Sea. Blue lines are the fits from a LOESS smoother with a span set to 0.12. Grey lines in the background are the individual scaled time series of observed prey biomass. Names of the species group included in each cluster are to the right of each figure."}
+
+include_graphics("plots/benthic_inverts.png")
 
 ```
 
