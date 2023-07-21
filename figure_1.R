@@ -346,7 +346,8 @@ nbs_bound<-data.frame(lat=c(62.1,62.1,61.1,61.1,60.5,60.5),
 
 op_map<-ggplot() + 
   geom_tile(data=in_fin, aes(x = lon, y = lat, fill = value),width=.5,height=.25) +
-  scale_fill_distiller(palette="Spectral", na.value="grey") +
+  #scale_fill_distiller(palette="Spectral", na.value="grey") +
+  scale_fill_distiller(palette="RdYlBu", na.value="grey") +
   facet_wrap(~year,ncol=1) +
   geom_sf(data=world) +
   coord_sf(xlim = c(lon_1,lon_2), ylim = c(lat_1,lat_2), expand = FALSE) +
@@ -388,13 +389,13 @@ unique(nchar(ebs_dat$station))
 dens_map<-ggplot() + 
   geom_tile(data=in_fin3, aes(x = lon, y = lat),width=.5,height=.25,fill='light grey') +
   geom_tile(data=in_fin, aes(x = lon, y = lat, fill = value),width=.5,height=.25) +
-  scale_fill_distiller(palette="Spectral", na.value="grey") +
+  scale_fill_distiller(palette="RdYlBu", na.value="grey") +
   geom_sf(data=world) +
   coord_sf(xlim = c(lon_1,lon_2), ylim = c(lat_1,lat_2), expand = FALSE) +
   theme_bw()+
   theme(axis.text.x = element_text(size = 10))+
   geom_line(data=nbs_bound,aes(x=lon,y=lat),col='red')+
-  theme(legend.position=c(.88,.62),
+  theme(legend.position=c(.8,.725),
         legend.background = element_rect(fill='transparent',color=NA),
         legend.box.background = element_rect(fill='transparent',color=NA))+labs(fill="ln(crab/nm^2)")
 

@@ -3,22 +3,21 @@ library(reshape2)
 library(tidyr)
 library(ggplot2)
 library(autoimage)
-library(akima)  #install.packages("akima")
+library(akima)  
 library(viridis)
 library(broom)
 library(maps)
 library("rnaturalearth")
 library(interp)
 library(RColorBrewer)
-library(reshape2) # for melt
+library(reshape2) 
 library(mgcv)  
 library(PBSmapping)
-library(mapdata)    #some additional hires data
-library(maptools)   #useful tools such as reading shapefiles
+library(mapdata)    
+library(maptools)   
 library(mapproj)
 library(metR)
 library(ggplot2)
-#install.packages("rnaturalearthdata")
 library(reshape)
 library(dplyr)
 library(ggplot2)
@@ -66,7 +65,6 @@ temp_tot<-survDAT %>%
 temp_tot$mid_pt<-mid_pts[temp_tot$group]
 
 #==temperature occupied by size class
-#==the trends are a lot different by size...
 in_dat<-filter(temp_tot,SEX==1,mid_pt>27.5&mid_pt<135)
 temp_occ<-ggplot(in_dat)+
   geom_line(aes(x=AKFIN_SURVEY_YEAR,y=temp_occ,col=as.factor(mid_pt),group=mid_pt),
@@ -93,7 +91,8 @@ temp_occ<-ggplot(in_dat)+
 ##########################################
 in_wt_m<-filter(survDAT,!is.na(WEIGHT)&SEX==1,GEAR_TEMPERATURE<5,AKFIN_SURVEY_YEAR>2001,AKFIN_SURVEY_YEAR!=2016&SHELL_CONDITION<=2,AKFIN_SURVEY_YEAR!=2021)
 mod_m<-gam(data=in_wt_m,WEIGHT~s(WIDTH)+s(GEAR_TEMPERATURE,k=4)+as.factor(AKFIN_SURVEY_YEAR))
-gamtabs(mod_m,caption='GAM output for full model predicting immature mortality. Deviance explained = 72.2%')
+summary(mod_m)
+gamtabs(mod_m,caption='GAM output for male snow crab weight. Deviance explained = 97.4%')
 
 png('plots/wt_size_smooth.png',height=6,width=9,res=350,units='in')
 draw(mod_m)&theme_bw()
@@ -108,13 +107,17 @@ preds<-data.frame(pred=c(pred_17,pred_18),
                   temp=c(rep(2,length(pred_17)),rep(2,length(pred_17))),
                   year=c(rep(2017,length(pred_17)),rep(2018,length(pred_17))))
 
+
+
 wt_wid<-ggplot()+
   geom_point(data=in_wt_m,
              aes(x=WIDTH,y=(WEIGHT),col=(GEAR_TEMPERATURE)),alpha=.5)+
-  scale_colour_distiller(palette="Spectral")+
+  scale_colour_distiller(palette="RdYlBu")+
   geom_line(data=preds,aes(x=width,y=pred,group=year))+
   theme_bw()+
-  theme(legend.position=c(.3,.8))+
+  theme(legend.position=c(.3,.8),
+        legend.background = element_rect(fill='transparent',color=NA),
+        legend.box.background = element_rect(fill='transparent',color=NA))+
   labs(colour="Bottom temperature")+
   xlab("Carapace width (mm)")+
   ylab("Weight (g)")+
@@ -194,16 +197,17 @@ gg_dat<-melt(keep_cals2)
 colnames(gg_dat)<-c("Size","Year","kCal")
 in_dat<-filter(gg_dat,Size>32&Size<95)
 
-#==need colorramppalette here
-
 cols <- colorRampPalette(brewer.pal(12, "RdYlBu"))
 my_pal <- rev(cols(length(unique(in_dat$Size))))
 
 kcal_plot<-ggplot(in_dat,aes(x=Year,y=kCal,fill=as.factor(Size)))+
   geom_area()+
   theme_bw()+
-  theme(legend.position=c(.3,.75),
-        legend.direction="vertical",legend.key.width = unit(.5, 'cm'),)+
+  theme(legend.position=c(.3,.78),
+        legend.direction="vertical",legend.key.width = unit(.45, 'cm'),
+        legend.key.height = unit(.45, 'cm'),
+        legend.background = element_rect(fill='transparent',color=NA),
+        legend.box.background = element_rect(fill='transparent',color=NA))+
   scale_fill_manual(values=my_pal,name = "Carapace width (mm)",)+
   ylab(expression ("kCal" ~day^-1))+
   guides(fill=guide_legend(ncol=3))
@@ -213,7 +217,20 @@ plot_1<-kcal_dat / kcal_plot+ plot_layout(heights=c(.3,1)) + plot_annotation(tag
 #==have to run figure 1 first to get 'tmp'
 
 png('plots/figure_3.png',height=6,width=13.5,res=350,units='in')
-(plot_1 | wt_wid | tmp) + plot_annotation(tag_levels='a')
+(plot_1 | wt_wid | tmp) + plot_annotation(tag_levels='A')
+dev.off()
+
+jpeg('plots/figure_3.jpeg',height=6,width=13.5,res=350,units='in')
+(plot_1 | wt_wid | tmp) + plot_annotation(tag_levels='A')
+dev.off()
+
+jpeg('plots/figure_3.jpeg',height=5,width=11.5,res=350,units='in')
+(plot_1 | wt_wid | tmp) + plot_annotation(tag_levels='A')
+dev.off()
+
+
+pdf('plots/figure_3.pdf',height=6,width=13.5)
+(plot_1 | wt_wid | tmp) + plot_annotation(tag_levels='A')
 dev.off()
 
 ##+=======================
