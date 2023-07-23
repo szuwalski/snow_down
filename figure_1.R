@@ -35,8 +35,8 @@ library(cowplot)
 #=================================
 # EBS data
 #==============================
-survDAT<-read.csv("data/EBSCrab_Haul/EBSCrab_Haul.csv",header=T,skip=5)
-
+#survDAT<-read.csv("data/EBSCrab_Haul/EBSCrab_Haul.csv",header=T,skip=5)
+load("survey_data.RData")
 drvYear<-as.numeric(substr(survDAT$CRUISE,1,4))
 SurvYR<-unique(drvYear)
 AllStation<-unique(survDAT$GIS_STATION)
