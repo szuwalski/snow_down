@@ -631,13 +631,6 @@ tot_crab_all<-(tot_crab_imm+tot_crab_mat)
 covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all)
 covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all)
 
-#==check numbers vs. weights
-# tot_crab_imm_1<-apply(sweep(outs[[1]]$`pred_imm_pop_num`[,1:13],2,use_wts[,1],FUN="*"),1,sum)[-c(32,33)]
-# tot_crab_mat_1<-apply(sweep(outs[[1]]$`pred_mat_pop_num`[,1:13],2,use_wts[,1],FUN="*"),1,sum)[-c(32,33)]
-# tot_crab_all_1<-(tot_crab_imm_1+tot_crab_mat_1)
-# 
-# covars_imm$predation[which(!is.na(match(covars_imm$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all_1)
-# covars_mat$predation[which(!is.na(match(covars_mat$year,alt_pred$Year)))]<-scale(tot_pred/tot_crab_all_1)
 
 #==show the comparison of different potential predation indices
 all_cod<-alt_pred
