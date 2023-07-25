@@ -825,6 +825,7 @@ est_vars<-data.frame(year=years,
  mod_base_t<-gam(data=input_dat,(dep_var)~s(temperature,k=4)+s(mat_pop,k=3) )
  summary(mod_base_t)
  plot(mod_base_t,page=1)
+ dev_expl_trim<-summary(mod_base_t)$dev.expl
  
 #==try shape constrained additive models for mature population--monotonic increasing 
 b <- scam(data=input_dat,dep_var~s(temperature,k=3)+s(mat_pop,bs='mpi')+s(discard,k=3)+s(predation,k=3)+s(bycatch,k=3) )
@@ -901,7 +902,9 @@ for(x in 1:nrow(use_dat))
 {
   cv_dat<-use_dat[-c(x),]
   #mod_cv<-gam(data=cv_dat,dep_var~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3) )
-  mod_cv<-gam(data=cv_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=4)+s(mat_pop,k=3)+s(predation,k=3)) 
+  mod_cv<-gam(data=cv_dat,(dep_var)~s(temperature,k=4)+s(disease,k=3)+s(discard,k=3)+s(bycatch,k=3)+s(mat_pop,k=3)+s(predation,k=3)) 
+  #summary(mod_cv)
+  #plot(mod_cv,pages=1)
   dev_expl_cv[x]<-summary(mod_cv)$dev.expl
   cv_plot_mat_m[[x]]<-plot(mod_cv,page=1)
   predicted_cv[x,]<-predict(mod_cv)
@@ -932,7 +935,7 @@ mat_cv_M_pval$fits<-"Mature mortality"
 
 plot_pval_mat<-ggplot(data=mat_cv_M_pval)+
   geom_histogram(aes(x=Value,group=Process,fill=Process),bins=50,alpha=.8)+
-  theme_bw()
+  theme_bw()+  geom_vline(aes(xintercept=0.05),lty=2)
 
 #==test impact of uncertainty in estimates============
 unc_plot_mat_m<-list()
@@ -1053,7 +1056,7 @@ for(y in 1:n_sims)
 png("plots/rando_mat.png",height=5,width=8,res=350,units='in') 
 hist(dev_expl_sim,breaks=seq(0,1,0.01),las=1,xlab="Deviance explained",main="")
 abline(v=sort(dev_expl_sim)[.95*n_sims],lty=2,col=2)
-abline(v=dev_expl,lwd=2,col=4)
+abline(v=dev_expl_trim,lwd=2,col=4)
 legend('topleft',bty='n',col=c(2,4),lty=c(2,1),legend=c("Randomized 95th percentile","Observed data"))
 dev.off()
 
@@ -1072,6 +1075,7 @@ mod_base<-gam(data=input_dat,dep_var~s(disease,k=3)+s(temperature,k=3)+s(mat_pop
 
 summary(mod_base)
 plot(mod_base,page=1)
+dev_expl_trim<-summary(mod_base_t)$dev.expl
 
 summary(mod_base_t)
 plot(mod_base_t,page=1)
@@ -1110,7 +1114,7 @@ plot(bm,pages=1)
 
 gamtabs(mod_base,caption=paste("GAM output for full model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base)$dev,2),"%"))
 gamtabs(mod_base_t,caption=paste("GAM output for trimmed model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base_t)$dev,2),"%"))
-gamtabs(b,caption=paste("GAM output for trimmed model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base_t)$dev,2),"%"))
+gamtabs(b,caption=paste("GAM output for a shape constrained model predicting immature mortality. Deviance explained = ",round(100*summary(mod_base_t)$dev,2),"%"))
 
 png("plots/gam_smooths_imm.png",height=5,width=8,res=350,units='in') 
 draw(mod_base,scales='fixed')&theme_bw()
@@ -1319,7 +1323,6 @@ for(y in 1:n_sims)
     in_dat_sim[,z]<-sample(input_dat[,z],length(input_dat[,z]),replace=TRUE)
   
   mod_sim<-gam(data=in_dat_sim,dep_var~s(temperature,k=3)+s(mat_pop,k=3))
-
   s_table[[y]]<-summary(mod_sim)$s.table
   dev_expl_sim[y]<-summary(mod_sim)$dev.expl
 }
@@ -1327,7 +1330,7 @@ for(y in 1:n_sims)
 png("plots/rando_imm.png",height=5,width=8,res=350,units='in') 
 hist(dev_expl_sim,breaks=seq(0,1,0.01),las=1,xlab="Deviance explained",main="")
 abline(v=sort(dev_expl_sim)[.95*n_sims],lty=2,col=2)
-abline(v=dev_expl,lwd=2,col=4)
+abline(v=dev_expl_trim,lwd=2,col=4)
 legend('topleft',bty='n',col=c(2,4),lty=c(2,1),legend=c("Randomized 95th percentile","Observed data"))
 dev.off()
 
